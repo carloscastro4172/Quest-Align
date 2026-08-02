@@ -1,37 +1,35 @@
 # HMD-Poser based Spine Posture Analysis (Quest Align)
 
-Este proyecto utiliza componentes e ideas de [HMD-Poser](https://github.com/Pico-AI-Team/HMD-Poser) para realizar análisis de postura de la columna en tiempo real con datos de un Meta Quest y un smartphone Android.
+This project uses components and ideas from [HMD-Poser](https://github.com/Pico-AI-Team/HMD-Poser) to perform real-time spine posture analysis using data from a Meta Quest HMD and an Android smartphone.
 
-## Estado actual
+## Current State
 
-La pipeline ha sido refactorizada para corregir la construcción del tensor de entrada,
-la sincronización temporal y la validación del checkpoint. Ver `docs/CURRENT_PIPELINE_AUDIT.md`
-para el listado completo de problemas corregidos.
+The pipeline has been refactored to fix the input tensor construction, temporal synchronization, and checkpoint validation. See `docs/CURRENT_PIPELINE_AUDIT.md` for the full list of corrected issues.
 
-## Estructura del repositorio
+## Repository Structure
 
 ```
 Quest-Align/
-├── server.py                         # Servidor UDP principal
-├── udp_listener.py                   # Wrapper de sockets UDP
-├── spine_analyzer.py                 # Análisis offline de la columna (legacy)
-├── postura_tronco_hmd_poser.ipynb    # Notebook offline
-├── config.yaml                       # Configuración centralizada
+├── server.py                         # Main UDP server
+├── udp_listener.py                   # UDP socket wrapper
+├── spine_analyzer.py                 # Offline spine analysis (legacy)
+├── postura_tronco_hmd_poser.ipynb    # Offline notebook
+├── config.yaml                       # Centralized configuration
 ├── src/
-│   ├── config.py                     # Loader de config.yaml
-│   ├── coordinate_frames.py          # Transformaciones de coordenadas y calibración
-│   ├── feature_constants.py          # Constantes del layout 135-D
-│   ├── feature_builder.py            # Constructor del vector 135-D
-│   ├── temporal_buffer.py            # Sincronización y ventana deslizante
-│   ├── checkpoint_validator.py       # Validación del checkpoint
-│   ├── hmd_poser_network.py          # Arquitectura del modelo (del repo oficial)
-│   └── posture_extraction.py         # Extracción de ángulos de columna
-├── tests/                            # Tests pytest
-├── docs/                             # Documentación metodológica
-└── artifacts/                        # Reportes generados
+│   ├── config.py                     # config.yaml loader
+│   ├── coordinate_frames.py          # Coordinate transforms and calibration
+│   ├── feature_constants.py          # 135-D layout constants
+│   ├── feature_builder.py            # 135-D feature vector constructor
+│   ├── temporal_buffer.py            # Synchronization and sliding window
+│   ├── checkpoint_validator.py       # Checkpoint validation
+│   ├── hmd_poser_network.py          # Model architecture (from official repo)
+│   └── posture_extraction.py         # Spine angle extraction
+├── tests/                            # Pytest tests
+├── docs/                             # Methodological documentation
+└── artifacts/                        # Generated reports
 ```
 
-## Dependencias
+## Dependencies
 
 - Python >= 3.9
 - PyTorch >= 2.0.1
@@ -40,23 +38,21 @@ Quest-Align/
 - PyYAML
 - pytest
 
-Para ejecutar el servidor también se necesitan los modelos corporales SMPL+H si se
-quiere usar la forward kinematics completa. El smoke test de la red neuronal no los
-requiere.
+The SMPL+H body models are also needed to run the full forward kinematics.
+The neural network smoke test does not require them.
 
-## Configuración
+## Configuration
 
-Edita `config.yaml` antes de ejecutar. Parámetros importantes:
+Edit `config.yaml` before running. Important parameters:
 
-- `checkpoint_path`: ruta al checkpoint HMD-Poser.
-- `strict_checkpoint_loading`: `true` por defecto.
-- `android_acceleration_type`: `null`, `accelerometer` o `linear`. Debe coincidir con
-  el sensor real del emisor Android.
-- `quest_quaternion_order`: `null`, `xyzw` o `wxyz`. Debe coincidir con el emisor Quest.
-- `synchronization_tolerance_ms`: tolerancia de sincronización Quest/Android.
+- `checkpoint_path`: path to the HMD-Poser checkpoint.
+- `strict_checkpoint_loading`: `true` by default.
+- `android_acceleration_type`: `null`, `accelerometer`, or `linear`. Must match the actual Android emitter sensor.
+- `quest_quaternion_order`: `null`, `xyzw`, or `wxyz`. Must match the Quest emitter.
+- `synchronization_tolerance_ms`: Quest/Android pairing tolerance.
 - `temporal_window_frames`: 40 frames.
 
-## Cómo ejecutar
+## How to Run
 
 ### Tests
 
@@ -64,56 +60,50 @@ Edita `config.yaml` antes de ejecutar. Parámetros importantes:
 python3 -m pytest tests -v
 ```
 
-### Validación del checkpoint
+### Checkpoint Validation
 
 ```bash
 python3 -c "from src.checkpoint_validator import run_checkpoint_validation; run_checkpoint_validation()"
 ```
 
-Se genera `artifacts/checkpoint_compatibility.json`.
+Generates `artifacts/checkpoint_compatibility.json`.
 
-### Servidor en tiempo real
+### Real-time Server
 
 ```bash
 python3 server.py
 ```
 
-El servidor escucha:
+The server listens on:
 
-- Quest / Unity en el puerto configurado (`quest_port`, 5006 por defecto).
-- Android en el puerto configurado (`android_port`, 5005 por defecto).
+- Quest / Unity on the configured port (`quest_port`, 5006 by default).
+- Android on the configured port (`android_port`, 5005 by default).
 
-### Demo end-to-end sintética
+### Synthetic End-to-end Demo
 
 ```bash
 python3 -m pytest tests/test_end_to_end.py -v
 ```
 
-## Documentación
+## Documentation
 
-- `docs/CURRENT_PIPELINE_AUDIT.md`: auditoría inicial y tabla de variables.
-- `docs/SENSOR_INPUT_SPEC.md`: especificación de los paquetes UDP.
-- `docs/COORDINATE_SYSTEMS.md`: sistemas de coordenadas y transformaciones.
-- `docs/HMD_POSER_FEATURE_LAYOUT.md`: layout exacto de los 135 valores.
-- `docs/CHECKPOINT_COMPATIBILITY.md`: resultado de la validación del checkpoint.
-- `docs/RUNTIME_TIMING.md`: frecuencias, sincronización y ventana temporal.
-- `docs/PAPER_METHODS_UPDATE.md`: texto listo para actualizar el paper.
+- `docs/CURRENT_PIPELINE_AUDIT.md`: initial audit and variable table.
+- `docs/SENSOR_INPUT_SPEC.md`: UDP packet specification.
+- `docs/COORDINATE_SYSTEMS.md`: coordinate systems and transforms.
+- `docs/HMD_POSER_FEATURE_LAYOUT.md`: exact 135-value layout.
+- `docs/CHECKPOINT_COMPATIBILITY.md`: checkpoint validation results.
+- `docs/RUNTIME_TIMING.md`: frequencies, synchronization, and temporal window.
+- `docs/PAPER_METHODS_UPDATE.md`: paper-ready text for the methods section.
 
-## Limitaciones importantes
+## Important Limitations
 
-- El orden de los cuaterniones de Quest y el tipo de aceleración Android no se pueden
-  verificar sin el código de los emisores. El repositorio actual no incluye las
-  aplicaciones Quest/Unity ni Android.
-- La configuración de hardware de Quest Align (HMD + manos + smartphone en pelvis)
-  **no** aparece en las configuraciones de entrenamiento del checkpoint HMD-Poser.
-  El checkpoint es arquitectónicamente compatible, pero no se puede afirmar que la
-  configuración pelvis-only fue entrenada.
-- El full body model SMPL+H no está incluido; la extracción de postura usa una
-  cinemática directa simplificada con la jerarquía SMPL estándar.
+- The Quest quaternion order and Android acceleration type cannot be verified without the emitter source code. This repository does not include the Quest/Unity or Android applications.
+- The Quest Align hardware configuration (HMD + hands + smartphone on pelvis) **does not** appear among the training configurations of the HMD-Poser checkpoint. The checkpoint is architecturally compatible, but the pelvis-only configuration cannot be claimed as a trained setup.
+- The full SMPL+H body model is not included; posture extraction uses a simplified forward kinematics routine with the standard SMPL hierarchy.
 
-## Agradecimientos
+## Acknowledgements
 
-Este trabajo se basa en **HMD-Poser** (PICO-AI-Team, CVPR 2024).
+This work is based on **HMD-Poser** (PICO-AI-Team, CVPR 2024).
 
 ```
 @inproceedings{daip2024hmdposer,
