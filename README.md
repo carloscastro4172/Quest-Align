@@ -15,6 +15,7 @@ Quest-Align/
 ├── spine_analyzer.py                 # Offline spine analysis (legacy)
 ├── postura_tronco_hmd_poser.ipynb    # Offline notebook
 ├── config.yaml                       # Centralized configuration
+├── RECORDS/                          # 18 experimental sessions (May 2026)
 ├── src/
 │   ├── config.py                     # config.yaml loader
 │   ├── coordinate_frames.py          # Coordinate transforms and calibration
@@ -26,7 +27,8 @@ Quest-Align/
 │   └── posture_extraction.py         # Spine angle extraction
 ├── tests/                            # Pytest tests
 ├── docs/                             # Methodological documentation
-└── artifacts/                        # Generated reports
+├── artifacts/                        # Generated reports
+└── pretrained_model/                 # HMD-Poser checkpoint (SHA-256 verified)
 ```
 
 ## Dependencies
@@ -97,12 +99,27 @@ python3 -m pytest tests/test_end_to_end.py -v
 
 ## Measured Performance (from 18 experimental sessions)
 
-The 18 sessions recorded in `RECORDS/` (`2026-05-18` to `2026-05-19`) used the original pipeline with a Meta Quest and an Android smartphone. The effective synchronized-pair frequency, computed as `(n_frames - 1) / (last_ts - first_ts)` from frame timestamps, was:
+The 18 sessions recorded in `RECORDS/` (`2026-05-18` to `2026-05-19`) are tracked in this repository. They used the original pipeline with a Meta Quest and an Android smartphone. The effective synchronized-pair frequency, computed as `(n_frames - 1) / (last_ts - first_ts)` from frame timestamps, was:
 
 ```
 Mean:  7.5 Hz
 Range: 5.2 – 8.0 Hz
 N:     18 sessions
+```
+
+To reproduce the calculation:
+
+```bash
+python3 -c "
+import json, os
+for f in sorted(os.listdir('RECORDS')):
+    d = json.load(open(f'RECORDS/{f}'))
+    frames = d['frames']
+    if len(frames) < 2: continue
+    dur = frames[-1]['ts'] - frames[0]['ts']
+    hz = (len(frames)-1)/dur if dur>0 else 0
+    print(f'{f:50s} {len(frames):4d}f  {dur:5.1f}s  {hz:5.1f} Hz')
+"
 ```
 
 The server loop ran at 60 Hz, but the actual rate of distinct sensor measurement pairs was **~7–8 Hz**. This is the frequency used for inference. The model was trained on AMASS data subsampled to 60 Hz; the experimental data spans a different temporal horizon for the same window size of 40 frames (approximately 5 s at 8 Hz versus 0.67 s at 60 Hz). Without temporal resampling, this mismatch must be noted in any paper reporting results.
