@@ -1,0 +1,47 @@
+{
+  "checkpoint_path": "/home/carlos/Documents/QUEST_/Quest-Align/pretrained_model/pretrained_model_protocol1.pt",
+  "sha256": "8f89acc8c6599f61eb4eb420bec097940070acc722bc7862229394f48d29746c",
+  "sparse_dim": 135,
+  "sequence_length": 40,
+  "input_shape_tested": [
+    1,
+    40,
+    135
+  ],
+  "strict_load": true,
+  "strict_load_error": null,
+  "missing_keys": [],
+  "unexpected_keys": [],
+  "not_loaded_keys": [],
+  "checkpoint_partial_load": false,
+  "forward_pass_success": true,
+  "forward_pass_error": null,
+  "output_shape": {
+    "pred_pose": [
+      1,
+      40,
+      132
+    ],
+    "pred_shapes": [
+      1,
+      40,
+      16
+    ]
+  },
+  "no_nan_in_output": true,
+  "training_sensor_configs_verified": [
+    "HMD",
+    "HMD_2IMUs",
+    "HMD_3IMUs"
+  ],
+  "quest_plus_pelvis_seen_during_training": false,
+  "architecturally_compatible": true,
+  "configuration_validated": false,
+  "notes": [
+    "SHA-256 calculado: 8f89acc8c6599f61eb4eb420bec097940070acc722bc7862229394f48d29746c",
+    "state_dict cargado con strict=True: todas las claves coinciden.",
+    "Forward pass exitoso: pred_pose=[1, 40, 132], pred_shapes=[1, 40, 16]",
+    "Quest Align (HMD + manos + smartphone en pelvis) NO est\u00e1 en compatible_inputs del entrenamiento. El checkpoint es arquitect\u00f3nicamente compatible con el tensor de 135 valores, pero la configuraci\u00f3n pelvis-only no fue validada expl\u00edcitamente como configuraci\u00f3n de entrenamiento original."
+  ],
+  "state_dict_keys_count": 236
+}

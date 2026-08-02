@@ -1,0 +1,16 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints
+
+# Records generadas en tiempo de ejecución
+RECORDS/
+
+# Si se prefiere no versionar el checkpoint grande, descomentar la siguiente línea:
+# pretrained_model/
