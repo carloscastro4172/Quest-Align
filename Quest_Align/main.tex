@@ -68,16 +68,16 @@ SMPL hierarchy, converted into interpretable pitch and lateral-roll indicators; 
 logging. The smartphone IMU is required for the intended multimodal posture-estimation mode;
 headset-only operation is retained solely as a diagnostic fallback in which pelvis channels
 are zeroed rather than substituted by a synthetic gravity prior. A functional evaluation was
-conducted with 10~participants (2~female, 8~male; ages 22--25) performing a seven-step,
-35~s-per-participant posture protocol (baseline, forward flexion, two lateral inclinations,
-and three wall-supported recovery segments), yielding $N=2{,}454$ observer-labeled
-frame-level samples recorded at a mean effective synchronized-pair frequency of 5.0~Hz
-(range 2.7--6.7~Hz), well below the 60~Hz rate used to train the HMD-Poser checkpoint. The
-resulting posture classification achieved 65.77\% accuracy, a macro-averaged F1-score of
-0.6739, and Cohen's~$\kappa$ of 0.4202. These results demonstrate operational feasibility
-but not biomechanical validity, because no synchronized optical motion-capture,
-inclinometer, or radiographic reference was collected, and the pelvis-only sensor
-configuration was not among HMD-Poser's original training configurations.}
+conducted with 10~participants performing a controlled posture protocol comprising centered,
+forward-flexion, and lateral-inclination states, yielding $N=1{,}504$ observer-labeled
+frame-level samples (excluding calibration frames) recorded at an unweighted mean
+session-level synchronized-pair frequency of 5.0~Hz (range 2.7--6.7~Hz), well below the
+60~Hz rate used to train the HMD-Poser checkpoint. The resulting posture classification
+achieved 66.62\% accuracy, a macro-averaged F1-score of 0.6805, and Cohen's~$\kappa$ of
+0.4851. These results demonstrate operational feasibility but not biomechanical validity,
+because no synchronized optical motion-capture, inclinometer, or radiographic reference was
+collected, and the pelvis-only sensor configuration was not among HMD-Poser's original
+training configurations.}
 \end{abstract}
 
 \renewcommand\IEEEkeywordsname{Keywords}
@@ -97,7 +97,7 @@ and a pelvis-mounted smartphone IMU streaming over UDP; (2)~\textit{AI Pipeline}
 time-synchronized feature construction and the HMD-Poser backbone for sparse full-body pose
 estimation; (3)~\CC{\textit{Trunk-Posture Interpretation}} providing real-time postural-awareness feedback for neutral
 upright, forward-flexion, and lateral-deviation states; and (4)~\textit{Results \& Metrics}
-summarizing the controlled-protocol evaluation over \CC{$N=2{,}454$} labeled frame-level samples.}
+summarizing the controlled-protocol evaluation over \CC{$N=1{,}504$} labeled frame-level samples (excluding calibration frames).}
 \label{fig:system_overview}
 \end{figure*}
 
@@ -141,7 +141,7 @@ model-compatible feature vector following the official HMD-Poser layout; (3)~a
 posture-interpretation layer that reduces the predicted SMPL trunk chain, via full forward
 kinematics, into calibrated pitch and lateral-roll indicators for real-time feedback and
 structured session logging; and (4)~a controlled functional evaluation with 10~participants
-and 2,454 observer-labeled frame-level samples, used to characterize acquisition consistency
+and 1,504 observer-labeled frame-level samples (calibration frames excluded), used to characterize acquisition consistency
 and preliminary discrimination among centered, forward-flexion, and lateral-deviation
 states.}
 
@@ -290,11 +290,7 @@ points can be identified during laboratory testing.
 
 \subsection{Hardware and Software Roles}
 The headset-side stream provides the position and orientation of the head, the left hand,
-and the right hand. \CC{The Android-side stream provides the smartphone orientation
-quaternion and acceleration vector measured near the pelvis. This additional channel
-is intended to reduce ambiguities that cannot be resolved from head-and-hand tracking alone;
-its specific contribution must be quantified in a future sensor-ablation study.} The headset stream uses UDP port 5006 and the phone stream uses UDP
-port 5005. \CC{The server loop has a nominal target of 60~Hz and tracks the most recent
+and the right hand. \CC{The Android-side stream provides the smartphone orientation quaternion and acceleration vector measured near the pelvis. The Android sender requested TYPE\_ACCELEROMETER\_UNCALIBRATED when available and fell back to TYPE\_ACCELEROMETER; TYPE\_LINEAR\_ACCELERATION was not used. Smartphone orientation was obtained from TYPE\_ROTATION\_VECTOR and converted with SensorManager.getQuaternionFromVector, producing normalized quaternions transmitted in [w,x,y,z] order. The sender also transmitted three-axis gyroscope measurements (TYPE\_GYROSCOPE\_UNCALIBRATED with fallback to TYPE\_GYROSCOPE), although the gyroscope was not used in the current HMD-Poser feature tensor. Sensor listeners were registered with SENSOR\_DELAY\_GAME, and UDP packets were scheduled every 16 ms, corresponding to a nominal transmission target of approximately 62.5 Hz. The application advertised a nominal IMU rate of 60 Hz. Packet timestamps were generated using SystemClock.elapsedRealtimeNanos at packet construction and did not correspond directly to SensorEvent.timestamp. The Android destination address and UDP port were configured through the application interface and set to port 5005 during the reported acquisition sessions. The effective synchronized-pair rate was measured independently at the server. This additional channel is intended to reduce ambiguities that cannot be resolved from head-and-hand tracking alone; its specific contribution must be quantified in a future sensor-ablation study.} The headset stream uses UDP port 5006. \CC{The server loop has a nominal target of 60~Hz and tracks the most recent
 timestamp for each stream; this configuration value is not the effective recording rate,
 which is instead governed by the rate of accepted synchronized sensor pairs.}
 \footnote{\url{https://github.com/carloscastro4172/Quest-Align}}
@@ -363,20 +359,7 @@ reported here.}
 
 \subsection{Controlled Protocol}
 The acquisition protocol was designed to generate repeatable postural changes while keeping
-the movements simple enough for non-expert participants. Each participant followed the
-sequence shown in Fig.~\ref{fig:protocol}. The protocol began with a wall-supported upright
-baseline and then alternated between a deviation posture and a centered recovery posture,
-yielding three coarse posture categories: Center, Forward, and Lateral.
-
-\CC{Table~\ref{tab:protocol_ieee} presents the protocol in tabular form. Unlike the
-75~s/step protocol used in earlier prototype iterations, each step was shortened to a
-uniform 5~s in the version used for the reported evaluation, giving a nominal duration of
-35~s per participant. The 5~s-per-step design was chosen to better match the system's
-effective acquisition rate and to leave headroom in a session for reconnection delays. Because
-of these delays and posture-transition overhead, the mean effective duration across the
-10~recorded sessions was 47.7~s (range 35.5--60.6~s), i.e., systematically longer than the
-35~s nominal target, yielding a total of 477.3~s of effective acquisition across all
-participants.}
+the movements simple enough for non-expert participants. The intended protocol comprised seven 5-s stages. Four sessions contained both lateral-inclination directions and the second centered-recovery event, whereas six sessions lacked one lateral direction and the CENTRO\_2 event in the recorded event log. All available labeled frames were retained for the exploratory aggregate analysis, resulting in an unbalanced number of observations across participants and posture classes.
 
 \begin{figure}[t]
 \centering
@@ -421,35 +404,8 @@ Step & Posture condition & Reference label & Duration (s) & Cumulative time (s) 
 \end{tabular}}
 \end{table}
 
-\CC{\subsection{Participants}
-Ten participants (2~female, 8~male; ages 22--25, height 1.56--1.75~m, weight
-53.0--69.0~kg) completed the protocol in May~2026. Table~\ref{tab:participants} summarizes
-individual anthropometrics. No participant reported a diagnosed spinal condition prior to
-the session; this was not independently verified through medical records.
-
-\begin{table}[t]
-\caption{Participant anthropometrics ($N=10$, May 2026)}
-\label{tab:participants}
-\centering
-\scriptsize
-\renewcommand{\arraystretch}{1.1}
-\begin{tabular}{ccccc}
-\toprule
-Session & Gender & Age & Height (m) & Weight (kg) \\
-\midrule
-1  & F & 24 & 1.56 & 55.0 \\
-2  & M & 23 & 1.67 & 69.0 \\
-3  & M & 22 & 1.73 & 63.0 \\
-4  & M & 24 & 1.70 & 60.3 \\
-5  & F & 25 & 1.60 & 57.0 \\
-6  & M & 23 & 1.66 & 53.0 \\
-7  & M & 24 & 1.75 & 63.0 \\
-8  & M & 23 & 1.70 & 62.5 \\
-9  & M & 23 & 1.68 & 67.2 \\
-10 & M & 25 & 1.65 & 66.8 \\
-\bottomrule
-\end{tabular}
-\end{table}}
+\subsection{Participants and Ethical Considerations}
+Ten adults participated in the evaluation. The sample included two participants recorded as female and eight as male. Mean age was 23.6$\pm$1.0 years (range: 22--25), mean height was 1.67$\pm$0.06 m (range: 1.56--1.75), and mean body mass was 61.7$\pm$5.4 kg (range: 53.0--69.0). Participant characteristics are reported only in aggregate to reduce re-identification risk. Participants were recruited from the university community in Ecuador. All participants provided informed consent, and the acquisition protocol was reviewed and approved by the relevant institutional ethics committee prior to data collection. The photographs in Fig.~\ref{fig:protocol} were taken and published with the participant's explicit written authorization.
 
 \subsection{Feature Construction}
 \CC{The runtime constructs a 135-dimensional feature vector per frame that exactly matches
@@ -473,12 +429,7 @@ with generic padding. When the smartphone stream is unavailable, the pelvis chan
 also zeroed and the server switches to the degraded \texttt{quest\_only} mode described in
 Section~IV-A; no synthetic gravity vector or placeholder quaternion is substituted.
 
-The Android orientation sensor was verified as \texttt{TYPE\_ACCELEROMETER} (gravity
-included). After transforming the raw acceleration into the internal right-handed
-coordinate frame (X~right, Y~up, Z~forward, meters, m/s$^2$) via the phone-to-pelvis
-calibration matrix $\mathbf{R}_{\text{internal from android}}$ -- computed during a
-mandatory neutral-pose calibration step -- the server subtracts the internal gravity vector
-$[0,\,-9.80665,\,0]$~m/s$^2$.}
+The smartphone acceleration sensor was verified from the recovered APK as TYPE\_ACCELEROMETER\_UNCALIBRATED with fallback to TYPE\_ACCELEROMETER (gravity included, m/s$^2$). After transforming the raw acceleration into the internal right-handed coordinate frame (X right, Y up, Z forward, meters, m/s$^2$) via the current phone orientation matrix and the calibration matrix R\_internal\_from\_android, the server applies an explicit gravity-compensation step under the internal Y-up convention, subtracting [0, -9.80665, 0] m/s$^2$.}
 
 \subsection{HMD-Poser Inference}
 \CC{The pretrained checkpoint \texttt{pretrained\_model\_protocol1.pt} is loaded with
@@ -487,11 +438,10 @@ test with input shape $(1,40,135)$ completes without NaN or dimensional errors. 
 receives a sliding window of 40 genuine, temporally distinct frames rather than a single
 frame repeated 40 times, since deduplicated synchronized pairs are accumulated over real
 time; this corrects a limitation present in earlier prototype iterations, in which the same
-frame was repeated to fill the model's temporal window. Because the effective
+frame was repeated to fill the model's temporal window. At the mean session-level rate of 5.0 Hz, 40 observations would nominally span approximately 7.8 s. However, the actual temporal span of valid windows depends on the contiguous synchronized-pair sequence and must be calculated from the timestamps of each completed window. Because the effective
 synchronized-pair frequency measured across the ten experimental sessions averaged 5.0~Hz
-(range 2.7--6.7~Hz), the resulting 40-frame window spans approximately 8~s of real time,
-compared with the 0.67~s window implied by the 60~Hz frame rate used during HMD-Poser
-training; no temporal resampling is applied to correct this mismatch. In addition, the
+(range 2.7--6.7~Hz), compared with the 0.67~s window implied by the 60~Hz frame rate used during HMD-Poser
+training, no temporal resampling is applied to correct this mismatch. In addition, the
 checkpoint's training configuration only covers \texttt{HMD}, \texttt{HMD\_2IMUs} (feet),
 and \texttt{HMD\_3IMUs} (feet~+~pelvis); the Quest Align sensor layout (HMD~+~hands~+~pelvis
 smartphone, with feet zeroed) is not one of these original configurations. Server selects
@@ -590,13 +540,12 @@ configuration, calibration, and operating mode. \\
 \subsection{Controlled Posture-Orientation Test}
 \CC{A controlled evaluation was conducted with 10~participants to verify whether the
 refactored pipeline could distinguish three coarse posture states: Center, Lateral, and
-Forward. All participants followed the protocol in Fig.~\ref{fig:protocol} and
-Table~\ref{tab:protocol_ieee}. The nominal duration was 35~s per participant; the mean
+Forward. All participants followed the nominal seven-stage protocol in Fig.~\ref{fig:protocol} and
+Table~\ref{tab:protocol_ieee}, with partial event logs in six of the ten sessions. The nominal duration was 35~s per participant; the mean
 effective duration was 47.7~s (range 35.5--60.6~s) owing to short reconnection losses,
 posture transitions, and occasional synchronization instability. The complete acquisition
 represented 477.3~s of labeled posture-monitoring data across the ten sessions, yielding
-2{,}454~individually timestamped frames. This paper reports results over the full recorded
-protocol, $N=2{,}454$.}
+1{,}504~individually timestamped frames (calibration frames excluded).}
 
 \CC{\textit{Runtime frequency.} The server execution loop runs at a nominal rate of
 60~Hz. However, the effective end-to-end recording rate is limited by the rate of accepted
@@ -604,31 +553,28 @@ synchronized sensor pairs and is calculated from the stored frame timestamps as}
 \begin{equation}
 \CC{f_{\mathrm{record}}=\frac{N-1}{t_N-t_1}.}
 \end{equation}
-\CC{Across the ten sessions, the mean recorded synchronized-pair rate was 5.0~Hz, with
-session-level values ranging from 2.7 to 6.7~Hz. Therefore, the nominal 60~Hz server-loop
-frequency should not be interpreted as the effective sensor-acquisition, synchronization,
-inference, or valid-output rate. An earlier 18-session dataset, collected with the initial
-(single-frame-repeat) prototype pipeline and reporting a mean rate of 7.5~Hz, is superseded
-by this ten-participant dataset and is not used in the analysis below.}
+\CC{Across the ten sessions, the unweighted mean of the session-level synchronized-pair rates was 5.0 Hz, with session-level values of 6.3, 6.7, 6.2, 6.2, 4.4, 3.9, 2.7, 3.9, 6.7, and 2.7 Hz. Therefore, the nominal 60 Hz server-loop frequency should not be interpreted as the effective sensor-acquisition, synchronization, inference, or valid-output rate. An earlier 18-session dataset, collected with the initial prototype pipeline and reporting a mean rate of 7.5 Hz, is superseded by this ten-participant dataset and is not used in the analysis below.}
 
 \CC{Each session recorded between 120 and 408 frames (mean 245), following a six-step
 event log (\texttt{CALIBRACION}, \texttt{CENTRO\_1}, \texttt{INCLINACION\_ADELANTE},
 \texttt{LATERAL\_DER}, \texttt{CENTRO\_2}, \texttt{LATERAL\_IZQ}) that maps onto the
-seven-step protocol of Table~\ref{tab:protocol_ieee}, with the three wall-supported
+nominal seven-stage protocol of Table~\ref{tab:protocol_ieee}, with the three wall-supported
 recovery segments (Steps~3, 5, and~7) collapsing into at most two distinct \texttt{Centro}
 labels per session; six of the ten sessions omit \texttt{CENTRO\_2} and one of the two
 lateral-inclination directions. As a result, the per-class sample counts reported below are
 not balanced across sessions, and this imbalance should be considered when interpreting
 per-class precision and recall. Ground-truth labels were assigned by the session operator
 at acquisition time; predicted labels were produced by the deployed pipeline described in
-Sections~IV-D through IV-F. All 2,454~frames come from the synchronized HMD/controller-plus-smartphone
+Sections~IV-D through IV-F. All 1,504~frames come from the synchronized HMD/controller-plus-smartphone
 configuration; \texttt{quest\_only} diagnostic outputs were excluded from this analysis.}
+
+Calibration frames (step\_id = CALIBRACION) were excluded from all classification metrics reported in this section because they participate in the system's neutral-offset estimation and do not constitute independent test data. The full 2,454-frame dataset including calibration frames is available in the companion repository.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=0.90\linewidth]{confusion_matrix.png}
     \caption{\CC{Confusion matrix comparing observer-labeled posture states with Quest
-    Align predictions over $N=2{,}454$ frame-level samples from the ten-participant,
+    Align predictions over $N=1{,}504$ frame-level samples from the ten-participant,
     refactored-pipeline dataset. Rows represent ground-truth labels (Center, Lateral,
     Forward) and columns represent predicted labels; percentage values indicate row-wise
     recall fractions and parenthesized values indicate absolute frame counts.}}
@@ -636,20 +582,19 @@ configuration; \texttt{quest\_only} diagnostic outputs were excluded from this a
 \end{figure}
 
 \CC{The confusion matrix in Fig.~\ref{fig:confusion_matrix} shows an overall accuracy of
-65.77\%, with 1{,}614~correctly classified frames out of 2{,}454~samples. The Center class
-produced 918~true positives, 305~false positives, 711~true negatives, and 520~false
-negatives. The Lateral class produced 441~true positives, 523~false positives,
-1{,}304~true negatives, and 186~false negatives. The Forward class produced 255~true
-positives, 12~false positives, 2{,}053~true negatives, and 134~false negatives. The main
-error pattern is between Center and Lateral: 514~true Center frames were predicted as
-Lateral, and 180~true Lateral frames were predicted as Center. In addition, 125~true
-Forward frames were predicted as Center (and only 9 as Lateral), suggesting that
+66.62\%, with 1{,}002 correctly classified frames out of 1{,}504 samples (calibration frames excluded). The Center class
+produced 306 true positives, 305 false positives, 711 true negatives, and 182 false
+negatives. The Lateral class produced 441 true positives, 190 false positives,
+687 true negatives, and 186 false negatives. The Forward class produced 255 true
+positives, 7 false positives, 1{,}108 true negatives, and 134 false negatives. The main
+error pattern is between Center and Lateral: 181 true Center frames were predicted as
+Lateral, and 180 true Lateral frames were predicted as Center. In addition, 125 true
+Forward frames were predicted as Center, suggesting that
 forward-flexion events were more often confused with a return to center than with lateral
-deviation, consistent with the predicted trunk pitch not consistently exceeding the alert
-threshold during transitional frames.}
+deviation.}
 
 \begin{table}[t]
-\caption{\CC{One-vs-rest counts and classification metrics for the controlled posture-orientation test ($N=2{,}454$)}}
+\caption{\CC{One-vs-rest counts and classification metrics for the controlled posture-orientation test ($N=1{,}504$)}}
 \label{tab:posture_metrics}
 \centering
 \scriptsize
@@ -659,38 +604,21 @@ threshold during transitional frames.}
 \toprule
 Class & TP & FP & TN & FN & Precision & Recall & F1-score & Specificity \\
 \midrule
-Center  & 918 & 305 & 711  & 520 & 75.1\% & 63.8\% & 0.6900 & 70.0\% \\
-Lateral & 441 & 523 & 1304 & 186 & 45.8\% & 70.3\% & 0.5544 & 71.4\% \\
-Forward & 255 & 12  & 2053 & 134 & 95.5\% & 65.5\% & 0.7774 & 99.4\% \\
+Center & 306 & 305 & 711 & 182 & 50.1\% & 62.7\% & 0.5569 & 70.0\% \\
+Lateral & 441 & 190 & 687 & 186 & 69.9\% & 70.3\% & 0.7011 & 78.3\% \\
+Forward & 255 & 7 & 1108 & 134 & 97.3\% & 65.6\% & 0.7834 & 99.4\% \\
 \midrule
-Macro avg. & -- & -- & -- & -- & 72.1\% & 66.6\% & 0.6739 & 80.3\% \\
+Macro avg. & -- & -- & -- & -- & 72.4\% & 66.2\% & 0.6805 & 82.6\% \\
 \bottomrule
 \end{tabular}}
 \end{table}
 
-\CC{The metric summary in Table~\ref{tab:posture_metrics} indicates that the model remains
-most conservative for the Forward class: it achieves the highest precision (95.5\%) and
-specificity (99.4\%), but a lower recall (65.5\%), meaning that some forward-flexion frames
-are not detected as such. The Lateral class achieves the highest recall (70.3\%) but the
-lowest precision (45.8\%), indicating that lateral deviation is over-predicted, especially
-during Center frames. The Center class shows intermediate but still limited performance,
-with 75.1\% precision, 63.8\% recall, and an F1-score of 0.6900. At the aggregate level, the
-macro-averaged F1-score is 0.6739 and Cohen's~$\kappa$ is 0.4202, indicating moderate
-agreement between observer labels and Quest Align predictions -- essentially unchanged in
-overall magnitude relative to earlier prototype iterations, despite the substantial
-methodological corrections to the feature layout, temporal window, and forward-kinematics
-extraction described in Sections~IV-D through IV-F. This suggests that the previously
-reported classification performance was not primarily an artifact of the single-frame-repeat
-or generic-padding pipeline, and that the remaining error is more likely attributable to the
-low effective sensor frequency, the pelvis-only sensor configuration (untested during
-HMD-Poser training), and sensor-to-segment calibration of the pelvis-mounted smartphone.
-These limitations are consistent with the observed IMU disconnections and with the
-sensitivity of the posture estimate to smartphone placement and wireless stability.}
+\CC{The metric summary in Table~\ref{tab:posture_metrics} indicates that the Forward class achieves the highest precision (97.3\%) and specificity (99.4\%), but a lower recall (65.6\%), meaning that some forward-flexion frames are not detected. The Lateral class achieves the highest recall (70.3\%) with improved precision (69.9\%) after calibration-frame exclusion. The Center class shows the weakest performance, with 50.1\% precision, 62.7\% recall, and an F1-score of 0.5569. At the aggregate level, the macro-averaged F1-score is 0.6805 and Cohen's~$\kappa$ is 0.4851, indicating moderate agreement between observer labels and Quest Align predictions. The aggregate metrics are of a similar magnitude to those obtained in the earlier prototype evaluation. However, because the datasets, protocol completeness, preprocessing pipeline, and temporal representation differ, the two evaluations should not be interpreted as a controlled comparison. The remaining error is more likely attributable to the low effective sensor frequency, the pelvis-only sensor configuration (untested during HMD-Poser training), and sensor-to-segment calibration of the pelvis-mounted smartphone.}
 
 \CC{Because consecutive frame-level samples arise from repeated measurements within the
 same participants and sessions, and because the six wall-supported recovery segments are
 unevenly represented across sessions (Section~V-C), these classification metrics should not
-be interpreted as 2,454 statistically independent, balanced observations. Moreover,
+be interpreted as 1,504 statistically independent, balanced observations. Moreover,
 accuracy, F1-score, and Cohen's~$\kappa$ describe agreement with observer-assigned posture
 states; they do not replace angular error or agreement analysis against synchronized
 biomechanical ground truth~\cite{ali_trunk_validation,villa_imu_validation}.}
@@ -721,14 +649,11 @@ near the pelvis avoids specialized wearable hardware, making the prototype suita
 educational demonstrations, early ergonomic feedback studies, and laboratory investigation
 of \CC{HMD-based trunk-motion analysis}.
 
-\CC{The ten-session evaluation of the refactored, 135-dimensional pipeline yielded a mean
-synchronized-pair frequency of 5.0~Hz and a session-level range of 2.7--6.7~Hz,
-substantially below the nominal 60~Hz server-loop target and somewhat lower than the 7.5~Hz
-mean previously measured on the superseded single-frame-repeat pipeline. Because the model
-now receives a genuine 40-frame window rather than a repeated frame, this low frequency
-translates directly into a temporal-horizon mismatch: the window spans roughly 8~s of real
+\CC{The ten-session evaluation yielded session-level synchronized-pair rates of 6.3, 6.7, 6.2, 6.2, 4.4, 3.9, 2.7, 3.9, 6.7, and 2.7 Hz (unweighted mean 5.0 Hz), substantially below the nominal 60 Hz server-loop target.
+Because the model now receives a genuine 40-frame window rather than a repeated frame, this low frequency
+translates directly into a temporal-horizon mismatch: at the mean session-level rate of 5.0 Hz, 40 observations would nominally span approximately 7.8 s of real
 time versus the 0.67~s window used during HMD-Poser training, and no resampling is applied
-to reconcile the two. A future runtime benchmark should separately report sensor,
+to reconcile the two. However, the actual temporal span of valid windows depends on the contiguous synchronized-pair sequence and must be calculated from the timestamps of each completed window. A future runtime benchmark should separately report sensor,
 synchronization, inference, and valid-output rates together with latency, jitter, frame
 loss, and reconnection intervals~\cite{mobileposer,diffusionposer,ultrainertialposer}, and
 should evaluate whether temporal resampling (e.g., SLERP for orientations, linear
@@ -835,9 +760,9 @@ into an end-to-end posture-monitoring pipeline. The system receives UDP sensor s
 constructs a 135-dimensional feature vector matching the official HMD-Poser layout,
 estimates pitch and lateral roll, applies neutral calibration, and stores structured session
 records. A controlled acquisition protocol with 10~participants (35~s nominal, 47.7~s mean
-effective duration per session) produced $N=2{,}454$ observer-labeled frame-level samples;
+effective duration per session) produced $N=1{,}504$ observer-labeled frame-level samples (calibration frames excluded);
 the classification evaluation on the refactored pipeline yielded an overall accuracy of
-65.77\%, a macro-averaged F1-score of 0.6739, and a Cohen's~$\kappa$ of 0.4202, indicating
+66.62\%, a macro-averaged F1-score of 0.6805, and a Cohen's~$\kappa$ of 0.4851, indicating
 moderate agreement between observer labels and system predictions -- a result of similar
 magnitude to earlier prototype iterations despite substantial corrections to the feature
 layout, temporal window, and trunk-angle extraction method, suggesting that the low
