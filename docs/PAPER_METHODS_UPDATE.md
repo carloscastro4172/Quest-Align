@@ -128,6 +128,20 @@ Any previous experimental results (e.g., pitch/roll measurements) were obtained
 with the old pipeline that padded the 15-D per-sensor tensor and repeated a single
 frame 40 times. Those results **must not** be attributed to the new 135-D pipeline.
 
+### Measured sensor frequency
+
+Across 18 experimental sessions (May 2026, Quest + Android smartphone) the
+effective synchronized-pair frequency was measured from frame timestamps:
+
+- Mean: **7.5 Hz**
+- Range: 5.2 – 8.0 Hz
+- Server loop: 60 Hz nominal
+
+The model was trained on AMASS data subsampled to 60 Hz. A 40-frame window at
+7.5 Hz spans approximately **5.3 s** of real time, compared to **0.67 s** at
+60 Hz. Without temporal resampling, the paper must report the actual effective
+frequency and note the temporal horizon mismatch with training.
+
 ---
 
 ## Texto sugerido para reemplazar las secciones del paper
@@ -153,8 +167,12 @@ frame 40 times. Those results **must not** be attributed to the new 135-D pipeli
 
 > We feed the network a sliding window of 40 real 135-D frames. The checkpoint
 > `pretrained_model_protocol1.pt` is loaded with `strict=True`, and the
-> architecture accepts an input of shape `(1, 40, 135)`. The checkpoint is
-> architecturally compatible with our 135-D tensor, but it was originally trained
+> architecture accepts an input of shape `(1, 40, 135)`. The synchronized-pair
+> frequency measured experimentally across 18 sessions was 7.5 Hz (range 5.2–8.0
+> Hz), yielding a window duration of approximately 5.3 s. The checkpoint was
+> originally trained on 60 Hz data (window duration 0.67 s). No temporal
+> resampling is applied. The checkpoint is architecturally compatible with our
+> 135-D tensor, but it was originally trained
 > on HMD, HMD+2IMUs, and HMD+3IMUs configurations; the Quest Align setup
 > (HMD + hands + pelvis smartphone) is not one of those original training
 > configurations. Therefore, the inference results are reported as the network

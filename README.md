@@ -95,10 +95,22 @@ python3 -m pytest tests/test_end_to_end.py -v
 - `docs/RUNTIME_TIMING.md`: frequencies, synchronization, and temporal window.
 - `docs/PAPER_METHODS_UPDATE.md`: paper-ready text for the methods section.
 
+## Measured Performance (from 18 experimental sessions)
+
+The 18 sessions recorded in `RECORDS/` (`2026-05-18` to `2026-05-19`) used the original pipeline with a Meta Quest and an Android smartphone. The effective synchronized-pair frequency, computed as `(n_frames - 1) / (last_ts - first_ts)` from frame timestamps, was:
+
+```
+Mean:  7.5 Hz
+Range: 5.2 – 8.0 Hz
+N:     18 sessions
+```
+
+The server loop ran at 60 Hz, but the actual rate of distinct sensor measurement pairs was **~7–8 Hz**. This is the frequency used for inference. The model was trained on AMASS data subsampled to 60 Hz; the experimental data spans a different temporal horizon for the same window size of 40 frames (approximately 5 s at 8 Hz versus 0.67 s at 60 Hz). Without temporal resampling, this mismatch must be noted in any paper reporting results.
+
 ## Important Limitations
 
 - The Quest quaternion order and Android acceleration type cannot be verified without the emitter source code. This repository does not include the Quest/Unity or Android applications.
-- The Quest Align hardware configuration (HMD + hands + smartphone on pelvis) **does not** appear among the training configurations of the HMD-Poser checkpoint. The checkpoint is architecturally compatible, but the pelvis-only configuration cannot be claimed as a trained setup.
+- The effective synchronized-pair frequency measured experimentally is **~7–8 Hz**, not 60 Hz. The 40-frame window therefore spans approximately 5 s of real time, not 0.67 s. The HMD-Poser checkpoint was trained at 60 Hz; without temporal resampling, the inference temporal horizon differs from the training distribution.
 - The full SMPL+H body model is not included; posture extraction uses a simplified forward kinematics routine with the standard SMPL hierarchy.
 
 ## Acknowledgements
