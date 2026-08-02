@@ -26,22 +26,29 @@
 - Forma esperada: `(40, 135)`.
 - Forma entregada al modelo: `(1, 40, 135)`.
 - Requisitos:
-  - 40 observaciones con timestamps crecientes;
-  - sin saltos mayores a `max_window_gap_ms` (100 ms);
-  - frecuencia efectiva calculada por `RollingWindow.effective_hz()`.
-- Si la ventana no está llena, no se ejecuta inferencia en modo normal.
-- El modo `diagnostic_repeated_frame_mode` repite el último frame para completar 40
-  y se marca como degradado.
+  - 40 observaciones with strictly increasing timestamps;
+  - no gaps larger than `max_window_gap_ms` (200 ms);
+  - effective frequency calculated via `RollingWindow.effective_hz()`.
+- Each unique synced pair is added exactly once; the synchronizer deduplicates
+  by `pair_ts`.
+- If the window is not full, no inference runs in normal mode.
+- The `diagnostic_repeated_frame_mode` repeats the last frame to fill 40 slots
+  and is marked as degraded.
 
 ## 4. Remuestreo
 
-Actualmente **no se implementa remuestreo temporal**. Si los emisores no entregan
-60 Hz estables, la ventana de 40 frames no representa exactamente el mismo horizonte
-temporal del entrenamiento. Para una implementación futura se recomienda:
+Actualmente **no se implementa remuestreo temporal**. La ventana se llena a la
+frecuencia de pares únicos sincronizados, no a la frecuencia del bucle del
+servidor (60 Hz). Si los emisores entregan ~8 Hz, la ventana tarda ~5 s en
+llenarse. Para una implementación futura se recomienda:
 
 - posiciones: interpolación lineal;
 - orientaciones: SLERP;
 - aceleraciones: interpolación lineal o retención justificada.
+
+Sin remuestreo, la documentación debe decir que la ventana depende de la
+frecuencia de pares únicos sincronizados. El campo `resampled: false` en el
+JSON de sesión registra este hecho.
 
 ## 5. Métricas de diagnóstico
 

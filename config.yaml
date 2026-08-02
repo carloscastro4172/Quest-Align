@@ -1,11 +1,11 @@
-# Configuración centralizada de Quest Align.
-# Todos los valores deben coincidir con la documentación y con el código.
+# Quest Align centralized configuration.
+# All values must match the documentation and the source code.
 
-# --- Checkpoint HMD-Poser ---
+# --- HMD-Poser checkpoint ---
 checkpoint_path: "pretrained_model/pretrained_model_protocol1.pt"
 strict_checkpoint_loading: true
 
-# --- Arquitectura del modelo (debe coincidir con el checkpoint) ---
+# --- Model architecture (must match checkpoint) ---
 model_name: "HMD_imu_HME_Universe"
 sparse_dim: 135
 input_motion_length: 40
@@ -17,63 +17,67 @@ model_params:
   nhead: 8
   block_num: 2
 
-# --- Frecuencias y timing ---
-# Frecuencia nominal del bucle del servidor (Hz)
+# --- Frequencies and timing ---
+# Nominal server loop frequency (Hz)
 server_loop_rate_hz: 60
 
-# Frecuencia objetivo a la que HMD-Poser fue entrenado (Hz)
+# Frequency HMD-Poser was trained at (Hz)
 expected_model_rate_hz: 60
 
-# Tolerancia de sincronización entre Quest y Android (ms)
-synchronization_tolerance_ms: 100
+# Quest-Android pairing tolerance (ms).
+# Must be greater than the expected inter-packet interval (e.g. 125 ms at 8 Hz).
+synchronization_tolerance_ms: 200
 
-# Máximo salto temporal permitido dentro de la ventana deslizante (ms)
-max_window_gap_ms: 100
+# Maximum time gap allowed within the sliding window (ms).
+# Must be greater than the real interval between unique synced pairs.
+# Without resampling, the window frequency equals the synced-pair frequency,
+# not the server loop frequency.
+max_window_gap_ms: 200
 
-# Timeout para considerar que un sensor se ha perdido (s)
+# Timeout after which a sensor is considered lost (s)
 sensor_timeout_s: 0.5
 
-# --- Ventana temporal ---
+# --- Temporal window ---
 temporal_window_frames: 40
 
-# --- Calibración ---
-# Número de frames usados para calibrar la postura neutral (solo ángulos de salida)
+# --- Calibration ---
+# Number of frames used for neutral posture calibration (output angles only)
 posture_calib_frames: 30
 
-# Tipo de aceleración Android. Valores permitidos:
-#   - "accelerometer": incluye gravedad (TYPE_ACCELEROMETER)
-#   - "linear": gravedad removida (TYPE_LINEAR_ACCELERATION)
-#   - null: no verificado (el código NO aplica ninguna corrección de gravedad)
+# Android acceleration type. Allowed values:
+#   - "accelerometer": gravity included (TYPE_ACCELEROMETER)
+#   - "linear":        gravity removed   (TYPE_LINEAR_ACCELERATION)
+#   - null:            unverified (the code applies NO gravity correction)
 android_acceleration_type: null
 
-# Orden de cuaterniones en cada emisor. Posibles valores: "xyzw" o "wxyz".
-# Null significa "no verificado con el emisor".
-quest_quaternion_order: null
+# Quaternion order in each emitter. Allowed values: "xyzw" or "wxyz".
+# null is NOT accepted; the server will refuse to start.
+quest_quaternion_order: "xyzw"
 android_quaternion_order: "wxyz"
 
-# Sistema de coordenadas interno: right-handed, Y up, Z forward, metros.
+# Internal coordinate system: right-handed, Y up, Z forward, meters.
 internal_coordinate_system: "right_handed_y_up_z_forward_meters"
 
-# Matriz de montaje del teléfono respecto a la pelvis.
-# Si es null, se usa la identidad y se documenta el supuesto.
+# Phone-to-pelvis mounting rotation matrix.
+# If null, identity is used and the assumption is documented.
 phone_mount_transform: null
 
-# Modo de sensores requerido.
-# Opciones: quest_only, quest_plus_pelvis, hmd_poser_2imu, hmd_poser_3imu
+# Required sensor mode.
+# Options: quest_only, quest_plus_pelvis, hmd_poser_2imu, hmd_poser_3imu
 required_sensor_mode: "quest_plus_pelvis"
 
 # --- UDP ---
 quest_port: 5006
 android_port: 5005
 
-# --- Grabación ---
+# --- Recording ---
 records_dir: "RECORDS"
 
 # --- Feature schema ---
 feature_schema_version: "hmd_poser_135_v1"
 
-# --- Emisores (referencia) ---
-# Quest/Unity emisor no disponible en este repositorio.
-# Android emisor no disponible en este repositorio.
-# Los campos de orden de cuaterniones y tipo de aceleración deben verificarse
-# en el código del emisor correspondiente.
+# --- Emitters (reference) ---
+# Quest/Unity emitter not available in this repository.
+# Android emitter not available in this repository.
+# Quaternion order and acceleration type must be verified against the
+# corresponding emitter source code.

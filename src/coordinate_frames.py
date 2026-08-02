@@ -72,6 +72,11 @@ def _order_indices(order: str) -> Tuple[int, int, int, int]:
     raise QuaternionError(f"Orden de cuaternión no soportado: {order}")
 
 
+def reorder_quaternion_to_xyzw(q: np.ndarray, source_order: str) -> np.ndarray:
+    """Convert quaternion from source_order (e.g. "wxyz") to internal [x, y, z, w]."""
+    return _to_xyzw(q, source_order)
+
+
 def _to_xyzw(q: np.ndarray, order: str) -> np.ndarray:
     w, x, y, z = _order_indices(order)
     return np.array([q[x], q[y], q[z], q[w]], dtype=np.float64)

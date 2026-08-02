@@ -125,12 +125,20 @@ class Synchronizer:
 
     def get_synced_pair(self) -> Optional[Tuple[Any, Any, float, float]]:
         """
-        Devuelve (quest_data, android_data, quest_server_ts, android_server_ts) si
-        las últimas muestras de cada buffer están dentro de la tolerancia.
+        Returns (quest_data, android_data, quest_server_ts, android_server_ts) if
+        the latest samples from each buffer are within tolerance and have not been
+        returned before.
+
+        Each pair is returned at most once.  The same packets are never reused.
         """
         q = self.quest.latest()
         a = self.android.latest()
         if q is None or a is None:
+            return None
+
+        pair_ts = max(q.server_arrival_ts, a.server_arrival_ts)
+
+        if self._last_pair_ts is not None and pair_ts <= self._last_pair_ts:
             return None
 
         offset_ms = abs(q.server_arrival_ts - a.server_arrival_ts) * 1000.0
@@ -138,8 +146,8 @@ class Synchronizer:
             self.stats.rejected_pairs += 1
             return None
 
+        self._last_pair_ts = pair_ts
         self.stats.synced_pairs += 1
-        self._last_pair_ts = max(q.server_arrival_ts, a.server_arrival_ts)
         return q.data, a.data, q.server_arrival_ts, a.server_arrival_ts
 
     def update_hz(self):

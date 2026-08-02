@@ -34,6 +34,7 @@ from src.coordinate_frames import (
     relative_rotation_in_head,
     relative_position_in_head,
     is_finite_vector,
+    reorder_quaternion_to_xyzw,
 )
 from src.sensor_availability import SensorAvailability
 
@@ -47,27 +48,28 @@ def _get_segment_rotation_matrix(
     frame: Dict[str, Any],
     calibration: Calibration,
     availability: SensorAvailability,
+    quest_quaternion_order: str = "xyzw",
+    android_quaternion_order: str = "wxyz",
 ) -> np.ndarray:
-    """Obtiene la matriz de rotación interna de un segmento."""
+    """Obtain the internal rotation matrix of a segment, applying the configured
+    quaternion-order reordering."""
     if not getattr(availability, segment_name, False):
-        # Sensor ausente: devolvemos matriz cero para que la conversión 6D sea cero.
         return np.zeros((3, 3), dtype=np.float64)
 
     if segment_name in ("head", "left_hand", "right_hand"):
         q = np.asarray(frame[segment_name]["rot"], dtype=np.float64)
+        q = reorder_quaternion_to_xyzw(q, quest_quaternion_order)
         q = normalize_quaternion(q, label=f"{segment_name}_rot")
         m_unity = quaternion_to_matrix(q)
         return calibration.apply_quest_rotation_matrix(m_unity)
 
     if segment_name == "pelvis":
         q = np.asarray(frame["pelvis"]["rot"], dtype=np.float64)
-        # Suponemos que Android envía [w, x, y, z]
         if q.shape != (4,):
             raise FeatureBuilderError(f"pelvis_rot debe tener shape (4,), tiene {q.shape}")
-        # Convertir a [x, y, z, w] y normalizar
-        q_xyzw = np.array([q[1], q[2], q[3], q[0]], dtype=np.float64)
-        q_xyzw = normalize_quaternion(q_xyzw, label="pelvis_rot")
-        m_phone = quaternion_to_matrix(q_xyzw)
+        q = reorder_quaternion_to_xyzw(q, android_quaternion_order)
+        q = normalize_quaternion(q, label="pelvis_rot")
+        m_phone = quaternion_to_matrix(q)
         return calibration.apply_android_rotation(m_phone)
 
     raise FeatureBuilderError(f"Segmento desconocido: {segment_name}")
@@ -113,6 +115,8 @@ def build_hmd_poser_features(
     previous_frame: Optional[Dict[str, Any]],
     calibration: Calibration,
     availability: SensorAvailability,
+    quest_quaternion_order: str = "xyzw",
+    android_quaternion_order: str = "wxyz",
 ) -> np.ndarray:
     """
     Construye el vector de 135 características de HMD-Poser a partir de dos frames
@@ -137,7 +141,8 @@ def build_hmd_poser_features(
     # ------------------------------------------------------------------
     global_rot_mats = {}
     for i, segment in enumerate(SEGMENT_NAMES):
-        M = _get_segment_rotation_matrix(segment, current_frame, calibration, availability)
+        M = _get_segment_rotation_matrix(segment, current_frame, calibration, availability,
+                                          quest_quaternion_order, android_quaternion_order)
         global_rot_mats[segment] = M
         if np.allclose(M, 0):
             feature[GLOBAL_ROT_SLICE.start + i * 6: GLOBAL_ROT_SLICE.start + (i + 1) * 6] = 0.0
@@ -152,7 +157,8 @@ def build_hmd_poser_features(
             feature[DELTA_ROT_SLICE.start + i * 6: DELTA_ROT_SLICE.start + (i + 1) * 6] = 0.0
     else:
         for i, segment in enumerate(SEGMENT_NAMES):
-            M_prev = _get_segment_rotation_matrix(segment, previous_frame, calibration, availability)
+            M_prev = _get_segment_rotation_matrix(segment, previous_frame, calibration, availability,
+                                                   quest_quaternion_order, android_quaternion_order)
             M_curr = global_rot_mats[segment]
             if np.allclose(M_prev, 0) or np.allclose(M_curr, 0):
                 feature[DELTA_ROT_SLICE.start + i * 6: DELTA_ROT_SLICE.start + (i + 1) * 6] = 0.0
@@ -208,9 +214,12 @@ def build_hmd_poser_features(
     if previous_frame is None:
         feature[DELTA_RELATIVE_ROT_SLICE] = 0.0
     else:
-        M_head_prev = _get_segment_rotation_matrix("head", previous_frame, calibration, availability)
-        M_left_hand_prev = _get_segment_rotation_matrix("left_hand", previous_frame, calibration, availability)
-        M_right_hand_prev = _get_segment_rotation_matrix("right_hand", previous_frame, calibration, availability)
+        M_head_prev = _get_segment_rotation_matrix("head", previous_frame, calibration, availability,
+                                                     quest_quaternion_order, android_quaternion_order)
+        M_left_hand_prev = _get_segment_rotation_matrix("left_hand", previous_frame, calibration, availability,
+                                                         quest_quaternion_order, android_quaternion_order)
+        M_right_hand_prev = _get_segment_rotation_matrix("right_hand", previous_frame, calibration, availability,
+                                                          quest_quaternion_order, android_quaternion_order)
 
         if np.allclose(M_head_prev, 0) or np.allclose(M_left_hand_prev, 0):
             rel_left_prev = np.zeros((3, 3))
@@ -306,18 +315,25 @@ def build_hmd_poser_features(
 
 
 class HMDPoserFeatureBuilder:
-    """Wrapper con la interfaz antigua para facilitar la migración del servidor."""
+    """Wrapper with the old interface to ease server migration."""
 
-    def __init__(self, calibration: Calibration, availability: SensorAvailability):
+    def __init__(self, calibration: Calibration, availability: SensorAvailability,
+                 quest_quaternion_order: str = "xyzw",
+                 android_quaternion_order: str = "wxyz"):
         self.calibration = calibration
         self.availability = availability
+        self.quest_quaternion_order = quest_quaternion_order
+        self.android_quaternion_order = android_quaternion_order
 
     def build_tensor(self, current_frame: Dict[str, Any],
                      previous_frame: Optional[Dict[str, Any]] = None) -> np.ndarray:
-        return build_hmd_poser_features(current_frame, previous_frame, self.calibration, self.availability)
+        return build_hmd_poser_features(current_frame, previous_frame, self.calibration,
+                                        self.availability,
+                                        self.quest_quaternion_order,
+                                        self.android_quaternion_order)
 
     def build_window(self, frames: list) -> np.ndarray:
-        """Construye una ventana (N, 135) a partir de una lista de frames consecutivos."""
+        """Build a (N, 135) window from a list of consecutive frames."""
         features = []
         for i, frame in enumerate(frames):
             prev = frames[i - 1] if i > 0 else None

@@ -45,6 +45,18 @@ class BiomechanicsServer:
         self.cfg = load_config(config_path)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        # --- Halt on unverified quaternion order (must be explicit) ---
+        if self.cfg.quest_quaternion_order is None:
+            raise SystemExit(
+                "ERROR: quest_quaternion_order is null in config.yaml. "
+                "Set it to 'xyzw' or 'wxyz' after verifying the Quest emitter."
+            )
+        if self.cfg.android_quaternion_order is None:
+            raise SystemExit(
+                "ERROR: android_quaternion_order is null in config.yaml. "
+                "Set it to 'xyzw' or 'wxyz' after verifying the Android emitter."
+            )
+
         # Networking
         self.quest_port = self.cfg.quest_port
         self.android_port = self.cfg.android_port
@@ -57,6 +69,7 @@ class BiomechanicsServer:
         self.android_lock = threading.Lock()
         self.last_quest_ts = 0.0
         self.last_android_ts = 0.0
+        self._last_quest_arrival_ts = 0.0   # dedup for quest_only mode
 
         # Synchronization
         self.sync = Synchronizer(tolerance_ms=self.cfg.synchronization_tolerance_ms)
@@ -350,10 +363,13 @@ class BiomechanicsServer:
 
     def _rebuild_feature_builder(self):
         if self.calibration is None:
-            # Sin calibración no se puede construir; el builder se creará tras calibrar.
             self.feature_builder = None
         else:
-            self.feature_builder = HMDPoserFeatureBuilder(self.calibration, self._availability)
+            self.feature_builder = HMDPoserFeatureBuilder(
+                self.calibration, self._availability,
+                quest_quaternion_order=self.cfg.quest_quaternion_order,
+                android_quaternion_order=self.cfg.android_quaternion_order,
+            )
 
     # ------------------------------------------------------------------
     # Calibration
@@ -543,10 +559,11 @@ class BiomechanicsServer:
         max_roll = max(rolls)
         min_pitch = min(pitches)
         duracion_s = frames[-1]['ts'] - frames[0]['ts'] if n_frames > 1 else 0
+        hz_effective = (n_frames - 1) / duracion_s if duracion_s > 0 and n_frames > 1 else 0.0
 
         print(f"  Duración sesión:     {duracion_s:.1f}s")
         if duracion_s > 0:
-            print(f"  Hz promedio:         {n_frames / duracion_s:.1f}")
+            print(f"  Hz efectivo:         {hz_effective:.1f}")
         print(f"{'─'*52}")
         print(f"  ENCORVAMIENTO (Pitch)")
         print(f"    Promedio: {avg_pitch:+.2f}°")
@@ -574,6 +591,7 @@ class BiomechanicsServer:
             'min_pitch': min_pitch,
             'n_frames': n_frames,
             'duration': duracion_s,
+            'hz_effective': hz_effective,
         })
 
     def _save_session_json(self, sess_num, frames, results, summary):
@@ -584,6 +602,10 @@ class BiomechanicsServer:
         filename = os.path.join(self.cfg.records_dir_abs(), f"{start_str}__{end_str}.json")
 
         try:
+            first_ts = frames[0]['ts'] if frames else 0.0
+            last_ts = frames[-1]['ts'] if frames else 0.0
+            hz_effective = summary.get('hz_effective', 0.0)
+
             output = {
                 'meta': {
                     'session': sess_num,
@@ -592,7 +614,10 @@ class BiomechanicsServer:
                     'duration_s': round(time.time() - self.session_start_ts, 2),
                     'total_frames': len(frames),
                     'valid_inferences': len(results),
-                    'hz_avg': round(len(frames) / max(time.time() - self.session_start_ts, 1), 1),
+                    'hz_effective': round(hz_effective, 1),
+                    'server_loop_rate_hz': self.cfg.server_loop_rate_hz,
+                    'expected_model_rate_hz': self.cfg.expected_model_rate_hz,
+                    'resampled': False,
                     'calib_pitch_offset': round(float(self._pitch_offset), 2),
                     'calib_roll_offset': round(float(self._roll_offset), 2),
                     'sensor_mode': self._availability.as_hmd_poser_mode(),
@@ -600,6 +625,12 @@ class BiomechanicsServer:
                     'feature_schema_version': self.cfg.feature_schema_version,
                     'checkpoint_sha256': self._checkpoint_sha256(),
                     'strict_checkpoint_loading': self.cfg.strict_checkpoint_loading,
+                    'sync_stats': self.sync.stats.to_dict(),
+                    'window_state': self.rolling_window.get_state(),
+                    'calibration': self.calibration.to_dict() if self.calibration else None,
+                    'quest_quaternion_order': self.cfg.quest_quaternion_order,
+                    'android_quaternion_order': self.cfg.android_quaternion_order,
+                    'android_acceleration_type': self.cfg.android_acceleration_type,
                 },
                 'summary': {
                     'avg_pitch_deg': round(float(summary.get('avg_pitch', 0)), 2),
@@ -674,19 +705,26 @@ class BiomechanicsServer:
                 if pair is None:
                     self._sleep_remaining(t0, interval)
                     continue
-                quest_data, android_data, _, _ = pair
+                quest_data, android_data, q_ts, a_ts = pair
+                pair_ts = max(q_ts, a_ts)
             elif self.sync_state == SyncState.QUEST_ONLY:
                 with self.quest_lock:
                     raw = self.latest_quest_data
+                    quest_arrival = self.last_quest_ts
                 if raw is None:
                     self._sleep_remaining(t0, interval)
                     continue
+                if quest_arrival <= self._last_quest_arrival_ts:
+                    self._sleep_remaining(t0, interval)
+                    continue
+                self._last_quest_arrival_ts = quest_arrival
                 quest_data = self._parse_quest_raw(raw)
                 android_data = {'pelvis': {'rot': np.array([0, 0, 0, 1], dtype=np.float32),
                                            'accel': np.array([0, 0, 0], dtype=np.float32)}}
                 if quest_data is None:
                     self._sleep_remaining(t0, interval)
                     continue
+                pair_ts = quest_arrival
             else:
                 self._sleep_remaining(t0, interval)
                 continue
@@ -702,7 +740,7 @@ class BiomechanicsServer:
                 continue
 
             self._last_combined_frame = current_combined
-            accepted = self.rolling_window.add(feature, time.time())
+            accepted = self.rolling_window.add(feature, pair_ts)
 
             window = self.rolling_window.to_numpy()
             if window is not None:

@@ -97,8 +97,11 @@ def extract_spine_angles(pred_pose_6d: np.ndarray,
     local_mats = sixd_to_matrix_batch(pred_pose_6d)
     global_mats = forward_kinematics_global(local_mats, parents)
 
-    # Orientación global del tronco: pelvis * spine1 * spine2 * spine3
-    trunk = global_mats[0] @ global_mats[3] @ global_mats[6] @ global_mats[9]
+    # global_mats[9] = spine3 global orientation, which already accumulates
+    # pelvis * spine1 * spine2 * spine3 via forward kinematics.
+    # Do NOT multiply global_mats[0] @ global_mats[3] @ … because each entry
+    # already includes its parent chain.
+    trunk = global_mats[9]
 
     # Convención ZXY: euler[1] = flexión/extensión (pitch), euler[2] = lateral (roll)
     euler = R.from_matrix(trunk).as_euler('ZXY', degrees=True)
