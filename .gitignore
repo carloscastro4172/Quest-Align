@@ -9,8 +9,8 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints
 
-# Records generadas en tiempo de ejecución
-RECORDS/
+# Records — tracked for experimental reproducibility
+# RECORDS/
 
 # Si se prefiere no versionar el checkpoint grande, descomentar la siguiente línea:
 # pretrained_model/
