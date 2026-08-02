@@ -63,6 +63,11 @@ for positions, and m/s² for accelerations. Quest/Unity data are transformed int
 this frame. Android data are transformed through a calibration matrix
 `R_internal_from_android` computed during a mandatory neutral-pose calibration.
 
+The Android emitter has been verified: it uses **TYPE_ACCELEROMETER** (gravity
+included). After transforming the raw acceleration to the internal frame via the
+current phone orientation and calibration matrices, the server subtracts the
+internal gravity vector `[0, -9.80665, 0]` m/s².
+
 ### Checkpoint loading
 
 The HMD-Poser checkpoint `pretrained_model_protocol1.pt` is loaded with
@@ -98,15 +103,6 @@ The correct statement is:
 > "The HMD-Poser checkpoint is architecturally compatible with the 135-dimensional
 > input tensor, but the pelvis-only inertial configuration was not explicitly
 > validated as an original training configuration."
-
-### Android sensor type
-
-The Android `acc` field has not been verified against the emitter code to be
-`TYPE_ACCELEROMETER` (gravity included) or `TYPE_LINEAR_ACCELERATION` (gravity
-removed). The implementation supports both via `config.yaml`, but the default is
-`null` (unverified). The paper should state that the sensor type was configured
-as linear acceleration only after verification, or that the value is unverified
-if the emitter code is not available.
 
 ### Quest quaternion order
 
@@ -167,7 +163,9 @@ results are superseded by this 10-participant dataset.
 > When the smartphone is unavailable, the pelvis channels are also zeroed and
 > the system switches to a degraded `quest_only` mode. All quaternions are
 > normalized, and the 6D representation is computed as the first two columns of
-> the rotation matrix, as in the original HMD-Poser code.
+> the rotation matrix, as in the original HMD-Poser code. The Android
+> acceleration sensor was verified as TYPE_ACCELEROMETER (gravity included);
+> gravity is subtracted after transforming to the internal coordinate frame.
 
 ### HMD-Poser Inference
 

@@ -47,8 +47,8 @@ posture_calib_frames: 30
 # Android acceleration type. Allowed values:
 #   - "accelerometer": gravity included (TYPE_ACCELEROMETER)
 #   - "linear":        gravity removed   (TYPE_LINEAR_ACCELERATION)
-#   - null:            unverified (the code applies NO gravity correction)
-android_acceleration_type: null
+# Verified from the Android emitter source code: TYPE_ACCELEROMETER.
+android_acceleration_type: "accelerometer"
 
 # Quaternion order in each emitter. Allowed values: "xyzw" or "wxyz".
 # null is NOT accepted; the server will refuse to start.

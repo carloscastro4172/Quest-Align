@@ -78,16 +78,14 @@ hay magnetómetro). Esta identificación debe verificarse en el emisor Android.
 
 ### 2.4 Sensor de aceleración
 
-El campo `acc` es genérico. Es **crítico** identificar si el emisor envía:
+El campo `acc` se ha verificado contra el código del emisor Android:
+**TYPE_ACCELEROMETER** (incluye gravedad). La unidad es m/s².
 
-- `TYPE_ACCELEROMETER`: incluye gravedad. El servidor debe restar el vector de
-  gravedad en el marco interno (`[0, -9.80665, 0]` m/s²) después de transformar.
-- `TYPE_LINEAR_ACCELERATION`: la gravedad ya ha sido removida por Android.
-  No se debe restar gravedad.
+El servidor resta la gravedad interna `[0, -9.80665, 0]` m/s² después de
+transformar la aceleración al marco interno.
 
-La configuración `android_acceleration_type` de `config.yaml` controla este
-comportamiento. El valor por defecto es `null` (no verificado), y el código NO
-aplica ninguna corrección de gravedad en ese caso.
+La configuración `android_acceleration_type: "accelerometer"` en `config.yaml`
+habilita esta corrección.
 
 ### 2.5 Unidades
 

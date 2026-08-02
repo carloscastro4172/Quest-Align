@@ -163,7 +163,8 @@ Those results are superseded by this 10-participant CSV dataset.
 
 ## Important Limitations
 
-- The Quest quaternion order and Android acceleration type cannot be verified without the emitter source code. This repository does not include the Quest/Unity or Android applications.
+- The Quest quaternion order has not been verified against the emitter source code.
+- The Android acceleration sensor has been verified from the emitter: **TYPE_ACCELEROMETER** (gravity included). The server subtracts gravity after transforming to the internal frame.
 - The effective synchronized-pair frequency measured experimentally is **~3–7 Hz**, not 60 Hz. The 40-frame window therefore spans up to ~8 s of real time, not 0.67 s. The HMD-Poser checkpoint was trained at 60 Hz; without temporal resampling, the inference temporal horizon differs from the training distribution.
 - The full SMPL+H body model is not included; posture extraction uses a simplified forward kinematics routine with the standard SMPL hierarchy.
 
