@@ -54,7 +54,7 @@ def neutral_calibration():
 def make_frame(head_pos=(0,0,0), head_rot=(0,0,0,1),
                left_pos=(0.2, -0.1, 0.3), left_rot=(0,0,0,1),
                right_pos=(-0.2, -0.1, 0.3), right_rot=(0,0,0,1),
-               pelvis_rot=(0,0,0,1), pelvis_accel=(0,0,0)):
+               pelvis_rot=(1,0,0,0), pelvis_accel=(0,0,0)):
     return {
         'head': {'pos': np.array(head_pos, dtype=np.float32),
                  'rot': np.array(head_rot, dtype=np.float32)},
@@ -172,7 +172,7 @@ def test_missing_feet_mask_only_feet_channels():
 
 def test_pelvis_channels_are_not_zero_when_available():
     fb = HMDPoserFeatureBuilder(neutral_calibration(), quest_plus_pelvis_availability())
-    f = fb.build_tensor(make_frame(pelvis_rot=(0,0,0,1), pelvis_accel=(1,2,3)))
+    f = fb.build_tensor(make_frame(pelvis_rot=(1,0,0,0), pelvis_accel=(1,2,3)))
     assert not np.allclose(f[GLOBAL_ROT_SLICE.start + 5*6: GLOBAL_ROT_SLICE.start + 6*6], 0)
     assert np.allclose(f[ACCELERATION_SLICE.start + 6: ACCELERATION_SLICE.start + 9], np.array([1,2,3]))
 
@@ -209,9 +209,10 @@ def test_acceleration_units_metadata():
     calib = neutral_calibration()
     calib.acceleration_includes_gravity = False
     assert calib.acceleration_includes_gravity is False
-    # Sin gravedad, aceleración en reposo debe ser cercana a cero
+    # Without gravity, resting acceleration should be near zero
     acc = np.array([0, 0, 0])
-    out = calib.apply_android_acceleration(acc)
+    m_phone = np.eye(3)
+    out = calib.apply_android_acceleration(acc, m_phone)
     assert np.allclose(out, 0)
 
 

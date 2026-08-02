@@ -222,26 +222,29 @@ def android_to_internal_rotation(m_phone_world: np.ndarray,
 
 
 def android_to_internal_acceleration(acc_device: np.ndarray,
+                                        m_phone_world: np.ndarray,
                                         R_internal_from_android: np.ndarray,
                                         R_body_from_phone: np.ndarray = np.eye(3),
                                         includes_gravity: bool = False,
                                         gravity_vector: np.ndarray = GRAVITY_INTERNAL) -> np.ndarray:
     """
-    Transforma la aceleración del teléfono al marco interno.
+    Transform phone acceleration to the internal frame using the CURRENT phone
+    orientation.
 
-    Args:
-        acc_device: aceleración en ejes del teléfono (m/s²).
-        R_internal_from_android: rotación del marco Android world al marco interno.
-        R_body_from_phone: rotación del cuerpo (pelvis) respecto al teléfono.
-        includes_gravity: si True, se resta la gravedad interna después de transformar.
-        gravity_vector: vector gravedad en el marco interno.
+    acc_device is expressed in the phone local axes (m/s²).
+    m_phone_world is the phone→Android-world rotation matrix for this frame.
+    The result is linear acceleration in the internal frame (m/s²).
 
-    Returns:
-        Aceleración lineal en el marco interno (m/s²).
+    Chain:
+        acc_body = R_body_from_phone @ acc_device          (mount)
+        acc_android_world = m_phone_world @ acc_body       (to world)
+        acc_internal = R_internal_from_android @ acc_android_world  (to internal)
     """
     acc_device = np.asarray(acc_device, dtype=np.float64).reshape(3)
+    m_phone_world = np.asarray(m_phone_world, dtype=np.float64)
     acc_body = R_body_from_phone @ acc_device
-    acc_internal = R_internal_from_android @ acc_body
+    acc_android_world = m_phone_world @ acc_body
+    acc_internal = R_internal_from_android @ acc_android_world
     if includes_gravity:
         acc_internal = acc_internal - gravity_vector
     return acc_internal
@@ -317,9 +320,11 @@ class Calibration:
     def apply_android_rotation(self, m_phone_world: np.ndarray) -> np.ndarray:
         return android_to_internal_rotation(m_phone_world, self.R_internal_from_android, self.R_body_from_phone)
 
-    def apply_android_acceleration(self, acc_device: np.ndarray) -> np.ndarray:
+    def apply_android_acceleration(self, acc_device: np.ndarray,
+                                    m_phone_world: np.ndarray) -> np.ndarray:
         return android_to_internal_acceleration(
             acc_device,
+            m_phone_world,
             self.R_internal_from_android,
             self.R_body_from_phone,
             includes_gravity=bool(self.acceleration_includes_gravity) if self.acceleration_includes_gravity is not None else False,
@@ -339,36 +344,38 @@ class Calibration:
 
 
 def build_calibration_from_neutral(
-    quest_head_rot_xyzw: np.ndarray,
-    android_phone_rot_wxyz: np.ndarray,
+    quest_head_rot: np.ndarray,
+    quest_quaternion_order: str,
+    android_phone_rot: np.ndarray,
+    android_quaternion_order: str,
     timestamp: float,
     assume_pelvis_aligned_with_head: bool = True,
     phone_mount_transform: Optional[np.ndarray] = None,
     acceleration_includes_gravity: Optional[bool] = None,
 ) -> Calibration:
     """
-    Construye una calibración a partir de un frame de postura neutral.
+    Build calibration from a neutral-pose frame.
 
     Args:
-        quest_head_rot_xyzw: orientación de la cabeza en Quest (supuesto [x,y,z,w]).
-        android_phone_rot_wxyz: orientación del teléfono en Android [w,x,y,z].
-        timestamp: momento de la calibración.
-        assume_pelvis_aligned_with_head: si True, se supone que la pelvis está alineada
-            con la cabeza en la postura neutral (yaw/pitch/roll similares). Esto es un
-            supuesto porque Quest Align no mide la pelvis directamente.
-        phone_mount_transform: matriz de rotación del teléfono respecto a la pelvis.
-            Si es None, se usa la identidad y se documenta que el montaje no se conoce.
-        acceleration_includes_gravity: indica si el campo 'acc' de Android incluye
-            gravedad. None si no se ha verificado.
+        quest_head_rot: head orientation from Quest, in the configured order.
+        quest_quaternion_order: "xyzw" or "wxyz".
+        android_phone_rot: phone orientation from Android, in the configured order.
+        android_quaternion_order: "wxyz" or "xyzw".
+        timestamp: calibration moment (server wall-clock seconds).
+        assume_pelvis_aligned_with_head: if True, pelvis is assumed aligned with
+            head in the neutral posture.
+        phone_mount_transform: 3x3 rotation matrix from phone to pelvis.
+            None uses identity.
+        acceleration_includes_gravity: whether Android 'acc' includes gravity.
 
     Returns:
-        Objeto Calibration listo para transformar frames de captura.
+        Calibration object.
     """
-    # Convertir a matrices en el marco interno
-    q_head_int = normalize_quaternion(quest_head_rot_xyzw, label="quest_head_rot")
+    q_head_int_raw = reorder_quaternion_to_xyzw(quest_head_rot, quest_quaternion_order)
+    q_head_int = normalize_quaternion(q_head_int_raw, label="quest_head_rot")
     m_head_int = unity_to_internal_matrix(quaternion_to_matrix(q_head_int))
 
-    q_phone_xyzw = _to_xyzw(android_phone_rot_wxyz, order="wxyz")
+    q_phone_xyzw = reorder_quaternion_to_xyzw(android_phone_rot, android_quaternion_order)
     q_phone_xyzw = normalize_quaternion(q_phone_xyzw, label="android_phone_rot")
     m_phone_world = quaternion_to_matrix(q_phone_xyzw)
 

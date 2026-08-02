@@ -55,8 +55,10 @@ def test_end_to_end_simulated_packets():
 
     # Calibración con un frame neutral sintético
     calibration = build_calibration_from_neutral(
-        quest_head_rot_xyzw=np.array([0,0,0,1], dtype=np.float32),
-        android_phone_rot_wxyz=np.array([0,0,0,1], dtype=np.float32),
+        quest_head_rot=np.array([0, 0, 0, 1], dtype=np.float32),
+        quest_quaternion_order="xyzw",
+        android_phone_rot=np.array([1, 0, 0, 0], dtype=np.float32),
+        android_quaternion_order="wxyz",
         timestamp=time.time(),
         acceleration_includes_gravity=False,
     )
@@ -122,8 +124,10 @@ def test_end_to_end_degraded_without_phone():
     from src.sensor_availability import quest_only_availability
     availability = quest_only_availability()
     calibration = build_calibration_from_neutral(
-        quest_head_rot_xyzw=np.array([0,0,0,1], dtype=np.float32),
-        android_phone_rot_wxyz=np.array([0,0,0,1], dtype=np.float32),
+        quest_head_rot=np.array([0, 0, 0, 1], dtype=np.float32),
+        quest_quaternion_order="xyzw",
+        android_phone_rot=np.array([1, 0, 0, 0], dtype=np.float32),
+        android_quaternion_order="wxyz",
         timestamp=time.time(),
         acceleration_includes_gravity=False,
     )

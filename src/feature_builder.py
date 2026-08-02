@@ -43,6 +43,22 @@ class FeatureBuilderError(ValueError):
     pass
 
 
+def _get_raw_phone_world_matrix(
+    frame: Dict[str, Any],
+    availability: SensorAvailability,
+    android_quaternion_order: str,
+) -> np.ndarray:
+    """Extract raw phone-world rotation from frame, before calibration."""
+    if not getattr(availability, "pelvis", False):
+        return np.zeros((3, 3), dtype=np.float64)
+    q = np.asarray(frame["pelvis"]["rot"], dtype=np.float64)
+    if q.shape != (4,):
+        raise FeatureBuilderError(f"pelvis_rot shape must be (4,), got {q.shape}")
+    q = reorder_quaternion_to_xyzw(q, android_quaternion_order)
+    q = normalize_quaternion(q, label="pelvis_rot_raw")
+    return quaternion_to_matrix(q)
+
+
 def _get_segment_rotation_matrix(
     segment_name: str,
     frame: Dict[str, Any],
@@ -97,6 +113,7 @@ def _get_segment_position(
 
 def _get_pelvis_acceleration(
     frame: Dict[str, Any],
+    m_phone_world: np.ndarray,
     calibration: Calibration,
     availability: SensorAvailability,
 ) -> np.ndarray:
@@ -104,10 +121,10 @@ def _get_pelvis_acceleration(
         return np.zeros(3, dtype=np.float64)
     acc = np.asarray(frame["pelvis"]["accel"], dtype=np.float64)
     if acc.shape != (3,):
-        raise FeatureBuilderError(f"pelvis_accel debe tener shape (3,), tiene {acc.shape}")
+        raise FeatureBuilderError(f"pelvis_accel shape must be (3,), got {acc.shape}")
     if not is_finite_vector(acc):
-        raise FeatureBuilderError("pelvis_accel contiene NaN/inf")
-    return calibration.apply_android_acceleration(acc)
+        raise FeatureBuilderError("pelvis_accel contains NaN/inf")
+    return calibration.apply_android_acceleration(acc, m_phone_world)
 
 
 def build_hmd_poser_features(
@@ -134,6 +151,9 @@ def build_hmd_poser_features(
     if not calibration.is_valid():
         raise FeatureBuilderError("La calibración no contiene matrices de rotación válidas")
 
+    # Extract raw phone-world matrix once (used for both rotation and acceleration)
+    m_phone_world = _get_raw_phone_world_matrix(current_frame, availability, android_quaternion_order)
+
     feature = np.zeros(FEATURE_DIM, dtype=np.float64)
 
     # ------------------------------------------------------------------
@@ -141,8 +161,14 @@ def build_hmd_poser_features(
     # ------------------------------------------------------------------
     global_rot_mats = {}
     for i, segment in enumerate(SEGMENT_NAMES):
-        M = _get_segment_rotation_matrix(segment, current_frame, calibration, availability,
-                                          quest_quaternion_order, android_quaternion_order)
+        if segment == "pelvis":
+            if np.allclose(m_phone_world, 0):
+                M = np.zeros((3, 3))
+            else:
+                M = calibration.apply_android_rotation(m_phone_world)
+        else:
+            M = _get_segment_rotation_matrix(segment, current_frame, calibration, availability,
+                                              quest_quaternion_order, android_quaternion_order)
         global_rot_mats[segment] = M
         if np.allclose(M, 0):
             feature[GLOBAL_ROT_SLICE.start + i * 6: GLOBAL_ROT_SLICE.start + (i + 1) * 6] = 0.0
@@ -297,7 +323,7 @@ def build_hmd_poser_features(
     # ------------------------------------------------------------------
     # 9. Aceleraciones: left_foot, right_foot, pelvis
     # ------------------------------------------------------------------
-    pelvis_acc = _get_pelvis_acceleration(current_frame, calibration, availability)
+    pelvis_acc = _get_pelvis_acceleration(current_frame, m_phone_world, calibration, availability)
     feature[ACCELERATION_SLICE.start: ACCELERATION_SLICE.start + 3] = 0.0           # left_foot
     feature[ACCELERATION_SLICE.start + 3: ACCELERATION_SLICE.start + 6] = 0.0       # right_foot
     feature[ACCELERATION_SLICE.start + 6: ACCELERATION_SLICE.start + 9] = pelvis_acc  # pelvis

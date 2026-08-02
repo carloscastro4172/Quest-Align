@@ -89,6 +89,8 @@ class BiomechanicsServer:
             max_gap_ms=self.cfg.max_window_gap_ms,
             diagnostic_repeated_frame_mode=False,
         )
+        self._last_feature_ts: Optional[float] = None
+        self._last_combined_frame = None
 
         # Feature builder
         self._availability = quest_plus_pelvis_availability()
@@ -317,6 +319,8 @@ class BiomechanicsServer:
                 self.sync_state = SyncState.RECORDING
                 self._availability = quest_plus_pelvis_availability()
                 self._rebuild_feature_builder()
+                self._last_combined_frame = None
+                self._last_feature_ts = None
                 if not self.session_active:
                     self._start_auto_session()
                 print("[SYNC] Calibración completada. Iniciando grabación.")
@@ -339,6 +343,8 @@ class BiomechanicsServer:
                 self.warmup_start_ts = now
                 self.sync_state = SyncState.WARMING_UP
                 self.rolling_window.reset()
+                self._last_combined_frame = None
+                self._last_feature_ts = None
                 print("[SYNC] Android reconectado. Resincronizando...")
 
     def _reset_to_waiting(self):
@@ -346,12 +352,16 @@ class BiomechanicsServer:
         self.sensor_calib_done = False
         self.calibration = None
         self.rolling_window.reset()
+        self._last_combined_frame = None
+        self._last_feature_ts = None
 
     def _switch_to_quest_only(self):
         self.sync_state = SyncState.QUEST_ONLY
         self._availability = quest_only_availability()
         self._rebuild_feature_builder()
         self.rolling_window.reset()
+        self._last_combined_frame = None
+        self._last_feature_ts = None
         self._warn_missing_sensors()
 
     def _warn_missing_sensors(self):
@@ -363,13 +373,20 @@ class BiomechanicsServer:
 
     def _rebuild_feature_builder(self):
         if self.calibration is None:
-            self.feature_builder = None
-        else:
-            self.feature_builder = HMDPoserFeatureBuilder(
-                self.calibration, self._availability,
-                quest_quaternion_order=self.cfg.quest_quaternion_order,
-                android_quaternion_order=self.cfg.android_quaternion_order,
-            )
+            if self._availability.as_hmd_poser_mode() == "quest_only":
+                # Diagnostic-only calibration: no Android data is used in quest_only
+                # mode, so identity matrices and zero acceleration are safe placeholders.
+                self.calibration = Calibration(timestamp=time.time())
+                print("[CALIB] Diagnostic calibration created for quest_only mode.")
+            else:
+                self.feature_builder = None
+                return
+
+        self.feature_builder = HMDPoserFeatureBuilder(
+            self.calibration, self._availability,
+            quest_quaternion_order=self.cfg.quest_quaternion_order,
+            android_quaternion_order=self.cfg.android_quaternion_order,
+        )
 
     # ------------------------------------------------------------------
     # Calibration
@@ -383,8 +400,10 @@ class BiomechanicsServer:
             # Calibración de sensores: se usa el primer frame sincronizado como neutral.
             # Esto es un supuesto porque no se mide la pelvis directamente.
             self.calibration = build_calibration_from_neutral(
-                quest_head_rot_xyzw=quest_data['head']['rot'],
-                android_phone_rot_wxyz=android_data['pelvis']['rot'],
+                quest_head_rot=quest_data['head']['rot'],
+                quest_quaternion_order=self.cfg.quest_quaternion_order,
+                android_phone_rot=android_data['pelvis']['rot'],
+                android_quaternion_order=self.cfg.android_quaternion_order,
                 timestamp=time.time(),
                 assume_pelvis_aligned_with_head=True,
                 phone_mount_transform=self.cfg.phone_mount_transform,
@@ -412,6 +431,8 @@ class BiomechanicsServer:
         self._calib_rolls = []
         self._pitch_offset = 0.0
         self._roll_offset = 0.0
+        self._last_combined_frame = None
+        self._last_feature_ts = None
         print(f"\n[SESSION #{self.session_number}] Grabación iniciada.")
         print(f"[CALIB] Mantén postura recta durante los primeros {self.cfg.posture_calib_frames} frames...")
 
@@ -444,13 +465,13 @@ class BiomechanicsServer:
         t.start()
 
     def _record_frame(self, quest_data: dict, android_data: dict, feature: np.ndarray,
-                        inference_result: dict = None):
-        ts = time.time()
+                        pair_ts: float, inference_result: dict = None):
         result = inference_result
 
         pelvis = android_data.get('pelvis', {})
         entry = {
-            'ts': ts,
+            'sensor_pair_ts': pair_ts,
+            'recorded_at_ts': time.time(),
             'frame_idx': len(self.session_frames),
             'sensors': {
                 'hmd_pos': quest_data['head']['pos'].tolist(),
@@ -558,7 +579,7 @@ class BiomechanicsServer:
         max_pitch = max(pitches)
         max_roll = max(rolls)
         min_pitch = min(pitches)
-        duracion_s = frames[-1]['ts'] - frames[0]['ts'] if n_frames > 1 else 0
+        duracion_s = frames[-1]['sensor_pair_ts'] - frames[0]['sensor_pair_ts'] if n_frames > 1 else 0
         hz_effective = (n_frames - 1) / duracion_s if duracion_s > 0 and n_frames > 1 else 0.0
 
         print(f"  Duración sesión:     {duracion_s:.1f}s")
@@ -602,8 +623,8 @@ class BiomechanicsServer:
         filename = os.path.join(self.cfg.records_dir_abs(), f"{start_str}__{end_str}.json")
 
         try:
-            first_ts = frames[0]['ts'] if frames else 0.0
-            last_ts = frames[-1]['ts'] if frames else 0.0
+            first_ts = frames[0]['sensor_pair_ts'] if frames else 0.0
+            last_ts = frames[-1]['sensor_pair_ts'] if frames else 0.0
             hz_effective = summary.get('hz_effective', 0.0)
 
             output = {
@@ -730,7 +751,19 @@ class BiomechanicsServer:
                 continue
 
             current_combined = {**quest_data, **android_data}
-            prev_combined = getattr(self, '_last_combined_frame', None)
+
+            # Detect time-gap before constructing features.
+            # A gap invalidates the previous frame for delta computation.
+            gap_ms = (
+                (pair_ts - self._last_feature_ts) * 1000.0
+                if self._last_feature_ts is not None
+                else 0.0
+            )
+            if self._last_feature_ts is None or gap_ms > self.cfg.max_window_gap_ms:
+                self.rolling_window.reset()
+                self._last_combined_frame = None
+
+            prev_combined = self._last_combined_frame
 
             try:
                 feature = self.feature_builder.build_tensor(current_combined, prev_combined)
@@ -740,16 +773,17 @@ class BiomechanicsServer:
                 continue
 
             self._last_combined_frame = current_combined
+            self._last_feature_ts = pair_ts
             accepted = self.rolling_window.add(feature, pair_ts)
 
             window = self.rolling_window.to_numpy()
             if window is not None:
                 result = self._run_inference(window)
                 if accepted:
-                    self._record_frame(quest_data, android_data, feature, result)
+                    self._record_frame(quest_data, android_data, feature, pair_ts, result)
             else:
                 if accepted:
-                    self._record_frame(quest_data, android_data, feature, None)
+                    self._record_frame(quest_data, android_data, feature, pair_ts, None)
 
             self._sleep_remaining(t0, interval)
 

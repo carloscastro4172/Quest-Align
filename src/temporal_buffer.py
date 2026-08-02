@@ -113,7 +113,10 @@ class Synchronizer:
         self.quest = SensorBuffer("Quest")
         self.android = SensorBuffer("Android")
         self.stats = SyncStats()
-        self._last_pair_ts: Optional[float] = None
+        self._last_quest_pair_ts: Optional[float] = None
+        self._last_android_pair_ts: Optional[float] = None
+        # Timestamps of accepted pairs for synced_hz computation
+        self._pair_timestamps: deque = deque(maxlen=120)
 
     def add_quest(self, data: Any, server_arrival_ts: float, device_ts: Optional[float] = None):
         self.quest.add(SensorSample(server_arrival_ts, device_ts, data))
@@ -126,19 +129,20 @@ class Synchronizer:
     def get_synced_pair(self) -> Optional[Tuple[Any, Any, float, float]]:
         """
         Returns (quest_data, android_data, quest_server_ts, android_server_ts) if
-        the latest samples from each buffer are within tolerance and have not been
-        returned before.
+        the latest samples from each buffer are within tolerance and BOTH components
+        are newer than their last-consumed counterparts.
 
-        Each pair is returned at most once.  The same packets are never reused.
+        Neither the Quest packet nor the Android packet is reused across pairs.
         """
         q = self.quest.latest()
         a = self.android.latest()
         if q is None or a is None:
             return None
 
-        pair_ts = max(q.server_arrival_ts, a.server_arrival_ts)
-
-        if self._last_pair_ts is not None and pair_ts <= self._last_pair_ts:
+        # Require both components to be strictly newer
+        if self._last_quest_pair_ts is not None and q.server_arrival_ts <= self._last_quest_pair_ts:
+            return None
+        if self._last_android_pair_ts is not None and a.server_arrival_ts <= self._last_android_pair_ts:
             return None
 
         offset_ms = abs(q.server_arrival_ts - a.server_arrival_ts) * 1000.0
@@ -146,19 +150,32 @@ class Synchronizer:
             self.stats.rejected_pairs += 1
             return None
 
-        self._last_pair_ts = pair_ts
+        self._last_quest_pair_ts = q.server_arrival_ts
+        self._last_android_pair_ts = a.server_arrival_ts
+        self._pair_timestamps.append(max(q.server_arrival_ts, a.server_arrival_ts))
         self.stats.synced_pairs += 1
         return q.data, a.data, q.server_arrival_ts, a.server_arrival_ts
+
+    def _synced_hz(self) -> float:
+        """Compute effective synced-pair frequency from recent pair timestamps."""
+        if len(self._pair_timestamps) < 2:
+            return 0.0
+        span = self._pair_timestamps[-1] - self._pair_timestamps[0]
+        n = len(self._pair_timestamps) - 1
+        return n / span if span > 0 else 0.0
 
     def update_hz(self):
         self.stats.quest_hz = self.quest.arrival_hz()
         self.stats.android_hz = self.android.arrival_hz()
+        self.stats.synced_hz = self._synced_hz()
 
     def reset(self):
         self.quest.clear()
         self.android.clear()
+        self._pair_timestamps.clear()
         self.stats = SyncStats()
-        self._last_pair_ts = None
+        self._last_quest_pair_ts = None
+        self._last_android_pair_ts = None
 
 
 class RollingWindow:

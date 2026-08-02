@@ -73,8 +73,10 @@ errors.
 ### Timing
 
 The server runs at a nominal 60 Hz loop. Synchronization uses the server arrival
-time of each UDP packet with a tolerance of 100 ms. The rolling window contains
-40 real frames; the last frame is not repeated 40 times in normal mode.
+time of each UDP packet with a tolerance of 200 ms. The effective inference
+frequency is limited by the rate of accepted synchronized sensor pairs, not by
+the server loop. The rolling window contains 40 real frames; the last frame is
+not repeated 40 times in normal mode.
 
 ---
 

@@ -8,14 +8,19 @@
 | Frecuencia nominal Quest | no verificada | contador de llegadas | `Synchronizer.quest` |
 | Frecuencia nominal Android | no verificada | contador de llegadas | `Synchronizer.android` |
 | Pares sincronizados | depende de la intersección | `Synchronizer.get_synced_pair()` | `temporal_buffer.py` |
-| Ventanas válidas entregadas al modelo | 60 Hz una vez llena | `RollingWindow.to_numpy()` | `temporal_buffer.py` |
-| Inferencia | 60 Hz cuando la ventana está llena | `model(window)` | `server.py` |
+| Ventanas válidas entregadas al modelo | limitada por los pares sincronizados, no por el bucle | `RollingWindow.to_numpy()` | `temporal_buffer.py` |
+| Inferencia | limitada por los pares sincronizados | `model(window)` | `server.py` |
+
+The server loop runs nominally at 60 Hz. However, without temporal resampling,
+new features and inference outputs are produced at the rate of accepted
+synchronized sensor pairs. The 40-frame window therefore spans a duration
+determined by the measured synchronized-pair frequency.
 
 ## 2. Sincronización
 
 - Se conservan dos timestamps: `device_ts` y `server_arrival_ts`.
 - La sincronización se realiza por `server_arrival_ts`.
-- Tolerancia: `synchronization_tolerance_ms` (100 ms por defecto).
+- Tolerancia: `synchronization_tolerance_ms` (200 ms por defecto).
 - Si el offset entre Quest y Android supera la tolerancia, se descarta el par y se
   incrementa `rejected_pairs`.
 - No se mezclan relojes de dispositivo sin corregir el offset.
