@@ -97,37 +97,74 @@ python3 -m pytest tests/test_end_to_end.py -v
 - `docs/RUNTIME_TIMING.md`: frequencies, synchronization, and temporal window.
 - `docs/PAPER_METHODS_UPDATE.md`: paper-ready text for the methods section.
 
-## Measured Performance (from 18 experimental sessions)
+## Measured Performance (10 participants, May 2026)
 
-The 18 sessions recorded in `RECORDS/` (`2026-05-18` to `2026-05-19`) are tracked in this repository. They used the original pipeline with a Meta Quest and an Android smartphone. The effective synchronized-pair frequency, computed as `(n_frames - 1) / (last_ts - first_ts)` from frame timestamps, was:
+The `RECORDS/` directory contains 10 experimental sessions from real users.
+Each session includes anthropometric data (`data_users.txt`) and per-frame
+CSV files (`cm_session_*.csv`) with timestamp, ground-truth label, predicted
+label, and pitch/roll angles in degrees.
 
-```
-Mean:  7.5 Hz
-Range: 5.2 – 8.0 Hz
-N:     18 sessions
-```
+### Participants
 
-To reproduce the calculation:
+| S | Gender | Age | Height (m) | Weight (kg) |
+|---|--------|-----|------------|-------------|
+| 1 | F | 24 | 1.56 | 55.0 |
+| 2 | M | 23 | 1.67 | 69.0 |
+| 3 | M | 22 | 1.73 | 63.0 |
+| 4 | M | 24 | 1.70 | 60.3 |
+| 5 | F | 25 | 1.60 | 57.0 |
+| 6 | M | 23 | 1.66 | 53.0 |
+| 7 | M | 24 | 1.75 | 63.0 |
+| 8 | M | 23 | 1.70 | 62.5 |
+| 9 | M | 23 | 1.68 | 67.2 |
+| 10 | M | 25 | 1.65 | 66.8 |
 
-```bash
-python3 -c "
-import json, os
-for f in sorted(os.listdir('RECORDS')):
-    d = json.load(open(f'RECORDS/{f}'))
-    frames = d['frames']
-    if len(frames) < 2: continue
-    dur = frames[-1]['ts'] - frames[0]['ts']
-    hz = (len(frames)-1)/dur if dur>0 else 0
-    print(f'{f:50s} {len(frames):4d}f  {dur:5.1f}s  {hz:5.1f} Hz')
-"
-```
+### Session stats
 
-The server loop ran at 60 Hz, but the actual rate of distinct sensor measurement pairs was **~7–8 Hz**. This is the frequency used for inference. The model was trained on AMASS data subsampled to 60 Hz; the experimental data spans a different temporal horizon for the same window size of 40 frames (approximately 5 s at 8 Hz versus 0.67 s at 60 Hz). Without temporal resampling, this mismatch must be noted in any paper reporting results.
+| S | Frames | Duration (s) | Hz | Steps | Pitch range (°) | Roll range (°) |
+|---|--------|-------------|-----|-------|-----------------|----------------|
+| 1 | 366 | 58.3 | 6.3 | 6 | [-31, +19] | [-20, +67] |
+| 2 | 408 | 60.6 | 6.7 | 6 | [-18, +42] | [-25, +69] |
+| 3 | 252 | 40.2 | 6.2 | 4 | [-34, -6] | [-15, +37] |
+| 4 | 252 | 40.2 | 6.2 | 4 | [-35, -4] | [-16, +39] |
+| 5 | 248 | 56.5 | 4.4 | 6 | [-80, +7] | [-19, +84] |
+| 6 | 140 | 35.5 | 3.9 | 4 | [-34, +56] | [-76, +9] |
+| 7 | 120 | 44.9 | 2.7 | 4 | [-57, +27] | [-20, +45] |
+| 8 | 140 | 35.5 | 3.9 | 4 | [-35, +57] | [-77, +10] |
+| 9 | 408 | 60.6 | 6.7 | 6 | [-18, +43] | [-26, +71] |
+| 10 | 120 | 44.9 | 2.7 | 4 | [-57, +28] | [-22, +46] |
+
+**Total:** 2,454 frames across 10 sessions (477.3 s).  
+**Mean Hz:** 5.0 (range 2.7–6.7).
+
+### Protocol steps
+
+Each session followed a fixed sequence of posture steps:
+
+- `CALIBRACION` – neutral standing calibration
+- `CENTRO_1` / `CENTRO_2` – neutral posture validation
+- `INCLINACION_ADELANTE` – forward hunch
+- `LATERAL_DER` – right lateral deviation
+- `LATERAL_IZQ` – left lateral deviation
+
+Sessions 3, 4, 6, 7, 8, 10 omit `CENTRO_2` and one lateral direction.
+
+### Methodology notes
+
+The server loop runs at 60 Hz, but the actual synchronized-pair rate is
+**~3–7 Hz** depending on the session. The HMD-Poser model was trained on
+AMASS data subsampled to 60 Hz. The 40-frame window at 5 Hz spans ~8 s
+of real time versus ~0.67 s at the training rate. Without temporal
+resampling, this mismatch must be reported.
+
+The old 18-session JSON dataset (also tracked in previous commits) was
+recorded with a preliminary pipeline that padded a single frame 40 times.
+Those results are superseded by this 10-participant CSV dataset.
 
 ## Important Limitations
 
 - The Quest quaternion order and Android acceleration type cannot be verified without the emitter source code. This repository does not include the Quest/Unity or Android applications.
-- The effective synchronized-pair frequency measured experimentally is **~7–8 Hz**, not 60 Hz. The 40-frame window therefore spans approximately 5 s of real time, not 0.67 s. The HMD-Poser checkpoint was trained at 60 Hz; without temporal resampling, the inference temporal horizon differs from the training distribution.
+- The effective synchronized-pair frequency measured experimentally is **~3–7 Hz**, not 60 Hz. The 40-frame window therefore spans up to ~8 s of real time, not 0.67 s. The HMD-Poser checkpoint was trained at 60 Hz; without temporal resampling, the inference temporal horizon differs from the training distribution.
 - The full SMPL+H body model is not included; posture extraction uses a simplified forward kinematics routine with the standard SMPL hierarchy.
 
 ## Acknowledgements

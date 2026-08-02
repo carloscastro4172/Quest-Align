@@ -52,7 +52,8 @@ llenarse. Para una implementación futura se recomienda:
 - aceleraciones: interpolación lineal o retención justificada.
 
 Sin remuestreo, la documentación debe decir que la ventana depende de la
-frecuencia de pares únicos sincronizados. El campo `resampled: false` en el
+frecuencia de pares únicos sincronizados (medida entre 2.7–6.7 Hz en las
+10 sesiones experimentales). El campo `resampled: false` en el
 JSON de sesión registra este hecho.
 
 ## 5. Métricas de diagnóstico

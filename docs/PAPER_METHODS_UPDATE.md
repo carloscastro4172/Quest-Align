@@ -130,17 +130,23 @@ frame 40 times. Those results **must not** be attributed to the new 135-D pipeli
 
 ### Measured sensor frequency
 
-Across 18 experimental sessions (May 2026, Quest + Android smartphone) the
-effective synchronized-pair frequency was measured from frame timestamps:
+The RECORDS/ directory contains data from **10 participants** (May 2026, 2F/8M,
+ages 22–25, height 1.56–1.75 m, weight 53–69 kg). Each session recorded 120–408
+frames (mean 245) with a 6-step posture protocol. The effective synchronized-pair
+frequency measured from frame timestamps was:
 
-- Mean: **7.5 Hz**
-- Range: 5.2 – 8.0 Hz
+- Mean: **5.0 Hz**
+- Range: 2.7 – 6.7 Hz
 - Server loop: 60 Hz nominal
 
 The model was trained on AMASS data subsampled to 60 Hz. A 40-frame window at
-7.5 Hz spans approximately **5.3 s** of real time, compared to **0.67 s** at
-60 Hz. Without temporal resampling, the paper must report the actual effective
-frequency and note the temporal horizon mismatch with training.
+5 Hz spans ~8 s of real time, compared to 0.67 s at 60 Hz. Without temporal
+resampling, the paper must report the measured frequency and note the temporal
+horizon mismatch.
+
+The 18-session JSON dataset recorded earlier (also tracked in the repository
+history) used a preliminary pipeline that padded a single frame 40 times. Those
+results are superseded by this 10-participant dataset.
 
 ---
 
@@ -168,11 +174,10 @@ frequency and note the temporal horizon mismatch with training.
 > We feed the network a sliding window of 40 real 135-D frames. The checkpoint
 > `pretrained_model_protocol1.pt` is loaded with `strict=True`, and the
 > architecture accepts an input of shape `(1, 40, 135)`. The synchronized-pair
-> frequency measured experimentally across 18 sessions was 7.5 Hz (range 5.2–8.0
-> Hz), yielding a window duration of approximately 5.3 s. The checkpoint was
-> originally trained on 60 Hz data (window duration 0.67 s). No temporal
-> resampling is applied. The checkpoint is architecturally compatible with our
-> 135-D tensor, but it was originally trained
+> frequency measured experimentally across 10 participants was 5.0 Hz on average
+> (range 2.7–6.7 Hz), yielding a window duration of approximately 8 s. The
+> checkpoint was originally trained on 60 Hz data (window duration 0.67 s).
+> No temporal resampling is applied. It was originally trained
 > on HMD, HMD+2IMUs, and HMD+3IMUs configurations; the Quest Align setup
 > (HMD + hands + pelvis smartphone) is not one of those original training
 > configurations. Therefore, the inference results are reported as the network

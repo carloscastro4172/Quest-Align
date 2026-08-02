@@ -1,0 +1,10 @@
+session_01 womman 24 years 1.56m 55kg
+session_2 men 23 years  1.67m 69 kg
+session_3 men 22 yeats 1.73m 63 kg
+session_4 men 24 years 1.7m 60.3 kg
+session_5 womman 25 years 1.6m  57 kg
+session_6 men 23 years 1.66m 53 kg
+session_7 men 24 years 1.75m 63kg
+session_8 men 23 years 1.7m 62.5kg
+session_9 men 23 years 1.68m 67.2kg
+session_10 men 25 years 1.65m 66.8kg
